@@ -1,0 +1,210 @@
+"Phrases"
+{
+  "Colour Active"
+  {
+    "#format"		"{1:s},{2:s}"
+    "en"			"The {{1}}{2}{default} colour is now active."
+  }
+  "CT Only Command"
+  {
+    "en"			"Only the CT's can use this command."
+  }
+  "Warden Only Command"
+  {
+    "en"			"Only the warden can use this command."
+  }
+  "Too Many Beams"
+  {
+    "en"			"You have made too many beams. Please wait for some to disappear before making any more."
+  }
+  "Beam Too Far"
+  {
+    "en"			"You are trying to place a beam too far away from you."
+  }
+  "Gamemode - Slap"
+  {
+    "en"			"The warden has toggled prisoner slaping."
+  }
+  "Gamemode - Freezebomb"
+  {
+    "en"			"The warden has toggled prisoner freezebombs."
+  }
+  "Highest Freezebomb"
+  {
+    "#format"		"{1:N}"
+    "en"       "The highest jumper is: {green}{1}{default}"
+  }
+  "Lowest Freezebomb"
+  {
+    "#format"		"{1:N}"
+    "en"       "The lowest jumper is: {green}{1}{default}"
+  }
+  "Gamemode - Blind"
+  {
+    "en"			"The warden has toggled prisoners vision."
+  }
+  "SpecialDay - HNS"
+  {
+    "#format"		"{1:d},{2:d}"
+    "en"       "Hide and seek day has started! CT's are frozen for {green}{1}{default} seconds. Prisoners will be teleported to the start beacon in {green}{2}{default} seconds."
+  }
+  "SpecialDay - HNS Prisoners Win"
+  {
+    "en"       "The prisoners have won the {green}hide and seek{default} day!"
+  }
+  "SpecialDay - Freeday"
+  {
+    "en"			"This round is a {green}freeday{default}!"
+  }
+  "SpecialDay - Low Gravity Freeday"
+  {
+    "en"			"This round is a {green}low gravity freeday{default}!"
+  }
+  "SpecialDay - Warday"
+  {
+    "#format"		"{1:d}"
+    "en"			"This round is a {green}warday{default}! Prisoners will be teleported to the start beacon in {green}{1}{default} seconds."
+  }
+  "SpecialDay - Virus Day"
+  {
+    "#format"		"{1:d},{2:d}"
+    "en"			"This round is a {green}Croatoan Virus Outbreak Day{default}! All players will be teleported to the start beacon in {green}{1}{default} seconds. You then have {green}{2}{default} seconds to run!"
+  }
+  "SpecialDay - Virus Day First Infected"
+  {
+    "#format"		"{1:N},{2:N}"
+    "en"			"The Croatoan Virus has started to spread. {green}{1}{default} and {green}{2}{default} are the first two infected!"
+  }
+  "SpecialDay - Virus Day New Infected"
+  {
+    "#format"		"{1:N}"
+    "en"			"{green}{1}{default} is now infected!"
+  }
+  "SpecialDay - Virus Day All Infected"
+  {
+    "en"			"Everybody has been infected with the {red}Croatoan Virus{default}! There were no survivors. You are all doomed."
+  }
+  "SpecialDay - Virus Day Non Infected Win"
+  {
+    "en"			"A cure has been found which is now killing the infected!"
+  }
+  "SpecialDay - Virus Day Non Infected Win Died Off"
+  {
+    "en"			"The {green}non infected{default} have survived because all of the infected have died!"
+  }
+  "SpecialDay - Virus Day Infected Killed"
+  {
+    "#format"		"{1:N},{2:N}"
+    "en"			"{green}{1}{default} has killed an infected called {green}{2}{default}!"
+  }
+  "SpecialDay - Virus Day HUD"
+  {
+    "#format"		"{1:s},{2:s},{3:d},{4:d}"
+    "en"			"<font size='16'>Your Status: <font color='{1}'>{2}</font>\n\nInfected: <font color='#FF0033'>{3}</font>\nNon Infected: <font color='#336600'>{4}</font></font>"
+  }
+  "SpecialDay - More People Needed"
+  {
+    "#format"		"{1:d}"
+    "en"			"You need at least {green}{1}{default} alive players for this special day."
+  }
+  "SpecialDay - Teleport Start"
+  {
+    "#format"		"{1:s}"
+    "en"			"Prisoners have been teleported. The {green}{1}{default} has begun."
+  }
+  "SpecialDay - Teleport Start All"
+  {
+    "#format"		"{1:s}"
+    "en"			"All players have been teleported. The {green}{1}{default} has begun."
+  }
+  "SpecialDay - Custom"
+  {
+    "en"			"This round is a {green}custom special day{default}. Listen to the warden for instructions!"
+  }
+  "Special Day - Too Late"
+  {
+    "#format"		"{1:d}"
+    "en"			"Its too late to call a special day. Special days can only be called in the first {green}{1}{default} seconds of a round."
+  }
+  "Shark Removed"
+  {
+    "#format"		"{1:N}"
+    "en"       "{green}{1}{default} is no longer a shark!"
+  }
+  "Shark Warning"
+  {
+    "#format"		"{1:N},{2:d}"
+    "en"       "{green}{1}{default} will no longer be a shark in {green}{2}{default} seconds."
+  }
+  "Shark New"
+  {
+    "#format"		"{1:N},{2:d}"
+    "en"       "{green}{1}{default} is now a shark for {green}{2}{default} seconds."
+  }
+  "Miccheck Started All"
+  {
+    "#format"		"{1:N}"
+    "en"			"{green}{1}{default} has started a Mic Check."
+  }
+  "Miccheck Started CT"
+  {
+    "#format"		"{1:N},{2:d}"
+    "en"			"{green}{1}{default} has started a Mic Check. Please use your mic in the next {green}{2}{default} seconds."
+  }
+  "Miccheck Status Not Verified"
+  {
+    "en" "Mic Check Status\n<font color='#800000'>Not Verified</font>"
+  }
+  "Miccheck Status Verified"
+  {
+    "en" "Mic Check Status\n<font color='#336600'>Verified</font>"
+  }
+  "Miccheck You Were Swapped"
+  {
+    "en" "You were swapped to the prisoners team because you failed to pass the Mic Check"
+  }
+  "Miccheck Finished"
+  {
+   "#format"		"{1:d}"
+   "en" "Mic Check is over. {green}{1}{default} guards were moved to the prisoners team."
+  }
+  "Miccheck Already Conducted"
+  {
+    "en" "A Mic Check was already conducted this round."
+  }
+  "Miccheck Already Happening"
+  {
+    "en" "A Mic Check is already in progress."
+  }
+  "Highlight - No Player Found"
+  {
+    "en" "No player found to highlight. Please make sure your cursor is directly over the prisoner."
+  }
+  "Highlight - Removed from all"
+  {
+    "#format"		"{1:N}"
+    "en" "{green}{1}{default} has removed highlights from all prisoners."
+  }
+  "Team Deathmatch - Can't Highlight"
+  {
+    "en" "Cant change or clear player teams (highlights) during team deathmatch."
+  }
+  "Team Deathmatch - Turned Off"
+  {
+    "en" "Team deathmatch is now over."
+  }
+  "Team Deathmatch - Turned On"
+  {
+    "en" "Team deathmatch is now on. Prisoners must kill all enemies that are not on their team!"
+  }
+  "Team Deathmatch - Not Enough Teams"
+  {
+    "#format"		"{1:d}"
+    "en" "Team deathmatch cannot start until {green}{1}{default} teams are highlighted."
+  }
+  "Priority Talk Toggle"
+  {
+    "#format"		"{1:s},{2:s}"
+    "en" "Priority warden talk is now: {{1}}{2}{default}"
+  }
+}
