@@ -10,36 +10,35 @@
 UserMsg g_FadeUserMsgId; //For Blind
 
 //Defines
-#define VERSION "1.13"
+#define VERSION "1.14"
 #define CHAT_TAG_PREFIX "[{pink}Warden Tools{default}] "
 
 int g_BeamSprite;
 int g_HaloSprite;
 
 //Cvars
-Handle cvar_maxbeams = null;
-Handle cvar_maxunits = null;
-Handle cvar_maxspecialdays = null;
-Handle cvar_hns_cthealth = null;
-Handle cvar_hns_tptime = null;
-Handle cvar_shark_health = null;
-Handle cvar_shark_duration = null;
-Handle cvar_shark_timeleft_warning = null;
-Handle cvar_hns_thealth = null;
-Handle cvar_hns_ctfreezetime = null;
-Handle cvar_hns_hiderswintime = null;
-Handle cvar_warday_tptime = null;
-Handle cvar_miccheck_time = null;
-Handle cvar_specialday_starttime = null;
-
-Handle cvar_virusday_tptime = null;
-Handle cvar_virusday_hidetime = null;
-Handle cvar_virusday_noninfectedwintime = null;
-Handle cvar_virusday_infectedhealth = null;
-Handle cvar_virusday_infectedspeed = null;
-Handle cvar_virusday_min_drain = null;
-Handle cvar_virusday_max_drain = null;
-Handle cvar_virusday_drain_interval = null;
+ConVar cvar_maxbeams = null;
+ConVar cvar_maxunits = null;
+ConVar cvar_maxspecialdays = null;
+ConVar cvar_hns_cthealth = null;
+ConVar cvar_hns_tptime = null;
+ConVar cvar_shark_health = null;
+ConVar cvar_shark_duration = null;
+ConVar cvar_shark_timeleft_warning = null;
+ConVar cvar_hns_thealth = null;
+ConVar cvar_hns_ctfreezetime = null;
+ConVar cvar_hns_hiderswintime = null;
+ConVar cvar_warday_tptime = null;
+ConVar cvar_miccheck_time = null;
+ConVar cvar_specialday_starttime = null;
+ConVar cvar_virusday_tptime = null;
+ConVar cvar_virusday_hidetime = null;
+ConVar cvar_virusday_noninfectedwintime = null;
+ConVar cvar_virusday_infectedhealth = null;
+ConVar cvar_virusday_infectedspeed = null;
+ConVar cvar_virusday_min_drain = null;
+ConVar cvar_virusday_max_drain = null;
+ConVar cvar_virusday_drain_interval = null;
 
 Menu MainMenu = null;
 Menu GameMenu = null;
@@ -168,7 +167,6 @@ public void OnPluginStart()
   newRoundTimeElapsed = GetTime();
   
   //Hooks
-  //HookEvent("round_end", Reset_Vars);
   HookEvent("round_start", Reset_Vars, EventHookMode_Pre);
   HookEvent("player_death", Event_PlayerDeath, EventHookMode_Pre);
 
@@ -288,7 +286,7 @@ public void OnClientPutInServer(int client)
   SDKHook(client, SDKHook_WeaponCanUse, BlockPickup);
 }
 
-//Reset all vars on round end as there may be a new warden
+//Reset all vars on round start
 public void Reset_Vars(Handle event, const char[] name, bool dontBroadcast)
 {
   //Close menu handler when round starts/ends
@@ -2208,14 +2206,11 @@ void VirusDay_InfectClient(int client, bool printMessage)
   EmitSoundToAllAny(infectSounds[randNum], client, SNDCHAN_USER_BASE, SNDLEVEL_RAIDSIREN); 
   
   //Strip all weapons
-  for (int x = 0; x <= 63; x++) { 
-    int index = GetEntPropEnt(client, Prop_Send, "m_hMyWeapons", x);
+  for (int i = 0; i < 44; i++) { 
+    int index = GetEntPropEnt(client, Prop_Send, "m_hMyWeapons", i);
     
-    if(index && IsValidEdict(index)) { 
-      char classname[64]; 
-      GetEdictClassname(index, classname, sizeof(classname)); 
+    if(index && IsValidEdict(index))
       RemoveWeaponDrop(client, index); 
-    } 
   }
   
   //Give them knife
@@ -2361,9 +2356,16 @@ void SafeDelete(int entity)
 //Helper
 void RemoveWeaponDrop(int client, int entity) 
 {
-  CS_DropWeapon(client, entity, true, true); 
-  AcceptEntityInput(entity, "Kill");
-}  
+  if (GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity") != client) {
+    LogAction(client, -1, "Weapon had incorrect owner. Entity was: %d. This may be an error.", entity);
+    return;
+  }
+  
+  if (IsClientInGame(client) && IsPlayerAlive(client) && IsValidEntity(entity)) {
+    CS_DropWeapon(client, entity, true, true); 
+    AcceptEntityInput(entity, "Kill");
+  }
+}
 
 public Action Timer_VirusDayShowHud(Handle timer)
 {
