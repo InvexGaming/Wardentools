@@ -10,7 +10,7 @@
 UserMsg g_FadeUserMsgId; //For Blind
 
 //Defines
-#define VERSION "1.14"
+#define VERSION "1.16"
 #define CHAT_TAG_PREFIX "[{pink}Warden Tools{default}] "
 
 int g_BeamSprite;
@@ -36,6 +36,7 @@ ConVar cvar_virusday_hidetime = null;
 ConVar cvar_virusday_noninfectedwintime = null;
 ConVar cvar_virusday_infectedhealth = null;
 ConVar cvar_virusday_infectedspeed = null;
+ConVar cvar_virusday_infectedgravity = null;
 ConVar cvar_virusday_min_drain = null;
 ConVar cvar_virusday_max_drain = null;
 ConVar cvar_virusday_drain_interval = null;
@@ -201,6 +202,7 @@ public void OnPluginStart()
   cvar_virusday_noninfectedwintime = CreateConVar("sm_wardentools_virusday_noninfectedwintime", "420.0", "The amount of time before non infected win the virus day (def. 420.0)");
   cvar_virusday_infectedhealth = CreateConVar("sm_wardentools_virusday_infectedhealth", "3000", "Health each infected gets (def. 3000)");
   cvar_virusday_infectedspeed = CreateConVar("sm_wardentools_virusday_infectedspeed", "1.35", "The speed multiplier the infected get (def. 1.35)");
+  cvar_virusday_infectedgravity = CreateConVar("sm_wardentools_virusday_infectedgravity", "0.8", "The gravity infected zombies get (def. 0.8)");
   cvar_virusday_min_drain = CreateConVar("sm_wardentools_virusday_min_drain", "12", "Minimum amount of HP that can be taken away during a drain (def. 12)");
   cvar_virusday_max_drain = CreateConVar("sm_wardentools_virusday_max_drain", "60", "Maximum amount of HP that can be taken away during a drain (def. 60)");
   cvar_virusday_drain_interval = CreateConVar("sm_wardentools_virusday_drain_interval", "1.0", "Interval of time between every drain (def. 1.0)");
@@ -2228,6 +2230,9 @@ void VirusDay_InfectClient(int client, bool printMessage)
   //Give speed boost
   SetEntPropFloat(client, Prop_Data, "m_flLaggedMovementValue", GetConVarFloat(cvar_virusday_infectedspeed));
   
+  //Set gravity, this should reset on client respawn
+  SetEntityGravity(client, GetConVarFloat(cvar_virusday_infectedgravity));
+  
   //Burn if past cure time
   if (isPastCureFoundTime) {
     ServerCommand("sm_burn #%d 10000", GetClientUserId(client));
@@ -2294,6 +2299,9 @@ public Action Timer_VirusDayInfectedWin(Handle timer)
   }
   
   isPastCureFoundTime = true;
+  
+  //Disable medic
+  Disable_Medics();
   
   //Start draining all infected
   drainTimer = CreateTimer(GetConVarFloat(cvar_virusday_drain_interval), Timer_DrainHP, _, TIMER_REPEAT);
@@ -2495,6 +2503,17 @@ void DealDamage(int victim, int damage, int attacker=0, dmg_type=DMG_GENERIC, ch
       RemoveEdict(pointHurt);
     }
   }
+}
+
+//Disble the medic (or anything that heals, negative valued trigger_hurt's) until the end of the round
+public void Disable_Medics()
+{
+  int entity = -1;
+  while ((entity = FindEntityByClassname(entity, "trigger_hurt")) != INVALID_ENT_REFERENCE) {
+    if (GetEntPropFloat(entity, Prop_Data, "m_flDamage") < 0) {
+      AcceptEntityInput(entity, "Disable");
+    }
+	}
 }
 
 //
