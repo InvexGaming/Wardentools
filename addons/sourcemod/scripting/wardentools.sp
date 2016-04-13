@@ -10,7 +10,7 @@
 UserMsg g_FadeUserMsgId; //For Blind
 
 //Defines
-#define VERSION "1.16"
+#define VERSION "1.17"
 #define CHAT_TAG_PREFIX "[{pink}Warden Tools{default}] "
 
 int g_BeamSprite;
@@ -2154,8 +2154,15 @@ public Action VirusDay_StartInfection(Handle timer)
       ++entryCount;
     }
   }
-  
   int totalToGive = 2;
+  
+  //Check to see if at least 'totalToGive' players are alive at this point and if not, abort
+  if (entryCount < totalToGive) {
+    CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Virus Day Aborted");
+    infectionStartTimer = null; //Needed so invalid handle doesnt occur later in ResetVars()
+    return Plugin_Handled;
+  }
+  
   int client1 = -1;
   int client2 = -1;
   
@@ -2182,6 +2189,8 @@ public Action VirusDay_StartInfection(Handle timer)
   CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Virus Day First Infected", client1, client2);
   
   infectionStartTimer = null;
+  
+  return Plugin_Handled;
 }
 
 void VirusDay_InfectClient(int client, bool printMessage)

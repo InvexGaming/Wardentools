@@ -97,6 +97,10 @@
     "#format"		"{1:N},{2:N}"
     "en"			"{green}{1}{default} has killed an infected called {green}{2}{default}!"
   }
+  "SpecialDay - Virus Day Aborted"
+  {
+    "en"			"The {green}Croatoan Virus Outbreak Day{default} round was aborted because not enough players were alive when picking the infected."
+  }
   "SpecialDay - Virus Day HUD"
   {
     "#format"		"{1:s},{2:s},{3:d},{4:d}"
