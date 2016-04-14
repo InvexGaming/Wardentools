@@ -23,7 +23,7 @@
   }
   "Gamemode - Slap"
   {
-    "en"			"The warden has toggled prisoner slaping."
+    "en"			"The warden has slapped the prisoners."
   }
   "Gamemode - Freezebomb"
   {

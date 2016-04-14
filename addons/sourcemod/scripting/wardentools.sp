@@ -10,7 +10,7 @@
 UserMsg g_FadeUserMsgId; //For Blind
 
 //Defines
-#define VERSION "1.17"
+#define VERSION "1.18"
 #define CHAT_TAG_PREFIX "[{pink}Warden Tools{default}] "
 
 int g_BeamSprite;
@@ -102,7 +102,6 @@ int currentColourCode = COLOUR_RED;
 
 //Important
 int currentBeamsUsed = 0;
-bool shouldSlapT = false;
 bool shouldBlindT = false;
 bool shouldFreezeT = false;
 Handle freezeTimer = null; 
@@ -207,9 +206,6 @@ public void OnPluginStart()
   cvar_virusday_max_drain = CreateConVar("sm_wardentools_virusday_max_drain", "60", "Maximum amount of HP that can be taken away during a drain (def. 60)");
   cvar_virusday_drain_interval = CreateConVar("sm_wardentools_virusday_drain_interval", "1.0", "Interval of time between every drain (def. 1.0)");
   
-  //Slap timer
-  CreateTimer(0.175, Timer_SlapT, _, TIMER_REPEAT);
-  
   //Create array
   micSwapTargets = CreateArray();
   
@@ -305,7 +301,6 @@ public void Reset_Vars(Handle event, const char[] name, bool dontBroadcast)
   //Reset settings
   currentBeamsUsed = 0;
   curDuration = 20.0;
-  shouldSlapT = false;
   shouldBlindT = false;
   shouldFreezeT = false;
   freezeTimer = null; 
@@ -593,7 +588,7 @@ public int MainMenuHandler(Menu menu, MenuAction action, int client, int param2)
       SetMenuTitle(GameMenu, "Select an effect");
       
       //Add menu items
-      AddMenuItem(GameMenu, "Option_Slap", "Slap Prisoners (Toggle)");
+      AddMenuItem(GameMenu, "Option_Slap", "Slap Prisoners");
       AddMenuItem(GameMenu, "Option_Freezebomb", "Freezebomb Prisoners (Toggle)");
       AddMenuItem(GameMenu, "Option_Blind", "Blind Prisoners (Toggle)");
       AddMenuItem(GameMenu, "Option_CTShark", "Make CT Shark (30 seconds)");
@@ -702,8 +697,15 @@ public int GameMenuHandler(Menu menu, MenuAction action, int client, int param2)
     GetMenuItem(menu, param2, info, sizeof(info));
     
     if (StrEqual(info, "Option_Slap")) {
-      //Slap Toggle
-      shouldSlapT = !shouldSlapT;
+      //Slap Prisoners
+      for (int i = 1; i <= MaxClients ; ++i) {
+        if (IsClientInGame(i) && IsPlayerAlive(i)) {
+          if (GetClientTeam(i) == CS_TEAM_T) {
+            SlapPlayer(i, 0, true);
+          }
+        }
+      }
+      
       CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "Gamemode - Slap");
       DisplayMenuAtItem(GameMenu, client, 0, 0);
     }
@@ -1765,20 +1767,6 @@ void TraceEye(int client, float pos[3]) {
     TR_GetEndPosition(pos, null);
   
   return;
-}
-
-//Gamemode slap T's
-public Action Timer_SlapT(Handle timer)
-{
-  //Check to see if timer should be stopped
-  if (!shouldSlapT) {
-    return Plugin_Continue;
-  }
-  
-  //Slap all T's in game
-  ServerCommand("sm_slap @t");
-  
-  return Plugin_Continue;
 }
 
 public Action FadeClient(Handle timer, Handle pack)
