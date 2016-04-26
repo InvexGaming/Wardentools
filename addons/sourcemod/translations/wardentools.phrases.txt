@@ -111,24 +111,55 @@
     "#format"		"{1:d}"
     "en"			"You need at least {green}{1}{default} alive players for this special day."
   }
-  "SpecialDay - Teleport Start"
+  "SpecialDay - Teleport Start T"
   {
     "#format"		"{1:s}"
-    "en"			"Prisoners have been teleported. The {green}{1}{default} has begun."
+    "en"			"Prisoners have been teleported for the {green}{1}{default}."
   }
   "SpecialDay - Teleport Start All"
   {
     "#format"		"{1:s}"
-    "en"			"All players have been teleported. The {green}{1}{default} has begun."
+    "en"			"All players have been teleported for the {green}{1}{default}."
   }
   "SpecialDay - Custom"
   {
     "en"			"This round is a {green}custom special day{default}. Listen to the warden for instructions!"
   }
-  "Special Day - Too Late"
+  "SpecialDay - Too Late"
   {
     "#format"		"{1:d}"
     "en"			"Its too late to call a special day. Special days can only be called in the first {green}{1}{default} seconds of a round."
+  }
+  "SpecialDay - FFADM Round Over"
+  {
+    "en"       "The {green}FFA deathmatch{default} day is now over. Remaining alive players have been slain."
+  }
+  "SpecialDay - FFADM Day"
+  {
+    "#format"		"{1:d},{2:d}"
+    "en"			"This round is a {green}FFA Deathmatch{default} day! All players will be teleported to the start beacon in {green}{1}{default} seconds. You then have {green}{2}{default} seconds to gather weapons and hide!"
+  }
+  "SpecialDay - FFADM Started"
+  {
+    "en" "The {green}FFA Deathmatch{default} day has now started! You may now damage other players."
+  }
+  "SpecialDay - Free For All Winner"
+  {
+    "#format"		"{1:N},{2:s}"
+    "en"       "{green}{1}{default} has won the {green}{2}{default} day!"
+  }
+  "SpecialDay - Hunger Games Day"
+  {
+    "#format"		"{1:d},{2:d}"
+    "en"			"This round is a {green}Hunger Games{default} day! All players will be teleported to the start beacon in {green}{1}{default} seconds. You then have {green}{2}{default} seconds to hide!"
+  }
+  "SpecialDay - Hunger Games Round Over"
+  {
+    "en"       "The {green}Hunger Games{default} day is now over. Remaining alive players have been slain."
+  }
+  "SpecialDay - Hunger Games Started"
+  {
+    "en" "The {green}Hunger Games{default} day has now started! You may now damage other players. You have also been given random health, primary gun, secondary gun and a single grenade!"
   }
   "Shark Removed"
   {

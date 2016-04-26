@@ -10,7 +10,7 @@
 UserMsg g_FadeUserMsgId; //For Blind
 
 //Defines
-#define VERSION "1.18"
+#define VERSION "1.19"
 #define CHAT_TAG_PREFIX "[{pink}Warden Tools{default}] "
 
 int g_BeamSprite;
@@ -40,6 +40,14 @@ ConVar cvar_virusday_infectedgravity = null;
 ConVar cvar_virusday_min_drain = null;
 ConVar cvar_virusday_max_drain = null;
 ConVar cvar_virusday_drain_interval = null;
+ConVar cvar_ffadm_tptime = null;
+ConVar cvar_ffadm_hidetime = null;
+ConVar cvar_ffadm_slaytime = null;
+ConVar cvar_hungergames_tptime = null;
+ConVar cvar_hungergames_hidetime = null;
+ConVar cvar_hungergames_slaytime = null;
+ConVar cvar_hungergames_min_random_health = null;
+ConVar cvar_hungergames_max_random_health = null;
 
 Menu MainMenu = null;
 Menu GameMenu = null;
@@ -74,12 +82,17 @@ int currentColour[4] = {255, 0, 0, 200}; //red is default
 #define COLOUR_BLACK 10
 
 #define SPECIALDAY_NONE 0
-#define SPECIALDAY_FREEDAY 1
-#define SPECIALDAY_LOW_GRAVITY_FREEDAY 2
-#define SPECIALDAY_HNS 3
-#define SPECIALDAY_WARDAY 4
-#define SPECIALDAY_VIRUSDAY 5
-#define SPECIALDAY_CUSTOM 6
+#define SPECIALDAY_CUSTOM 1
+#define SPECIALDAY_FREEDAY 2
+#define SPECIALDAY_LOW_GRAVITY_FREEDAY 3
+#define SPECIALDAY_HNS 4
+#define SPECIALDAY_WARDAY 5
+#define SPECIALDAY_VIRUSDAY 6
+#define SPECIALDAY_FFADM 7
+#define SPECIALDAY_HUNGERGAMES 8
+
+#define TELEPORTTYPE_ALL 0
+#define TELEPORTTYPE_T 1
 
 #define INFECT_SOUND_1 "invex_gaming/jb_wardentools/infected_1.mp3"
 #define INFECT_SOUND_2 "invex_gaming/jb_wardentools/infected_2.mp3"
@@ -128,6 +141,10 @@ Handle virusdayNonInfectedWinHandle = null;
 Handle drainTimer = null;
 Handle infectionStartTimer = null;
 
+Handle freeforallRoundEndHandle = null;
+Handle freeforallStartTimer = null;
+bool isFFARoundStalemate = false;
+
 int newRoundTimeElapsed = 0;
 Handle hnsPrisonersWinHandle = null;
 
@@ -135,6 +152,7 @@ ArrayList micSwapTargets;
 
 //Per map settings
 int numSpecialDays = 0;
+bool isFirstRound = false;
 
 //Laser
 int g_DefaultColors_c[7][4] = { {255,255,255,255}, {255,0,0,255}, {0,255,0,255}, {0,0,255,255}, {255,255,0,255}, {0,255,255,255}, {255,0,255,255} };
@@ -167,7 +185,7 @@ public void OnPluginStart()
   newRoundTimeElapsed = GetTime();
   
   //Hooks
-  HookEvent("round_start", Reset_Vars, EventHookMode_Pre);
+  HookEvent("round_start", Event_RoundStart, EventHookMode_Pre);
   HookEvent("player_death", Event_PlayerDeath, EventHookMode_Pre);
 
   //For blind
@@ -205,6 +223,16 @@ public void OnPluginStart()
   cvar_virusday_min_drain = CreateConVar("sm_wardentools_virusday_min_drain", "12", "Minimum amount of HP that can be taken away during a drain (def. 12)");
   cvar_virusday_max_drain = CreateConVar("sm_wardentools_virusday_max_drain", "60", "Maximum amount of HP that can be taken away during a drain (def. 60)");
   cvar_virusday_drain_interval = CreateConVar("sm_wardentools_virusday_drain_interval", "1.0", "Interval of time between every drain (def. 1.0)");
+  
+  cvar_ffadm_tptime = CreateConVar("sm_wardentools_ffadm_tptime", "10.0", "The amount of time before all players are teleported to start beacon (def. 10.0)");
+  cvar_ffadm_hidetime = CreateConVar("sm_wardentools_ffadm_hidetime", "60", "Number of seconds everyone has to hide (def. 60)");
+  cvar_ffadm_slaytime = CreateConVar("sm_wardentools_ffadm_slaytime", "420.0", "The amount of time before all players are slayed (def. 420.0)");
+  
+  cvar_hungergames_tptime = CreateConVar("sm_wardentools_hungergames_tptime", "10.0", "The amount of time before all players are teleported to start beacon (def. 10.0)");
+  cvar_hungergames_hidetime = CreateConVar("sm_wardentools_hungergames_hidetime", "60", "Number of seconds everyone has to hide (def. 60)");
+  cvar_hungergames_slaytime = CreateConVar("sm_wardentools_hungergames_slaytime", "420.0", "The amount of time before all players are slayed (def. 420.0)");
+  cvar_hungergames_min_random_health = CreateConVar("sm_wardentools_hungergames_min_random_health", "100.0", "The lower bound for randomised health for hunger games (def. 75.0)");
+  cvar_hungergames_max_random_health = CreateConVar("sm_wardentools_hungergames_max_random_health", "175.0", "The upper bound for randomised health for hunger games (def. 125.0)");
   
   //Create array
   micSwapTargets = CreateArray();
@@ -263,6 +291,9 @@ public void OnMapStart()
   
   //Reset Special days
   numSpecialDays = 0;
+  
+  //1st round after map change
+  isFirstRound = true;
 }
 
 //Client put in server
@@ -284,8 +315,23 @@ public void OnClientPutInServer(int client)
   SDKHook(client, SDKHook_WeaponCanUse, BlockPickup);
 }
 
-//Reset all vars on round start
-public void Reset_Vars(Handle event, const char[] name, bool dontBroadcast)
+//Round start
+public void Event_RoundStart(Handle event, const char[] name, bool dontBroadcast)
+{
+  //Reset vars
+  Reset_Vars();
+ 
+  //Enforce 1st round freeday
+  if (isFirstRound) {
+    specialDay = SPECIALDAY_FREEDAY;
+    CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Freeday");
+    isFirstRound = false;
+    isSpecialDay = true;
+  }
+}
+
+//Reset all variables of importance
+void Reset_Vars()
 {
   //Close menu handler when round starts/ends
   if (MainMenu != null) delete MainMenu;
@@ -297,6 +343,8 @@ public void Reset_Vars(Handle event, const char[] name, bool dontBroadcast)
   if (virusdayNonInfectedWinHandle != null) delete virusdayNonInfectedWinHandle;
   if (drainTimer != null) delete drainTimer;
   if (infectionStartTimer != null) delete infectionStartTimer;
+  if (freeforallRoundEndHandle != null) delete freeforallRoundEndHandle; 
+  if (freeforallStartTimer != null) delete freeforallStartTimer;
   
   //Reset settings
   currentBeamsUsed = 0;
@@ -314,6 +362,7 @@ public void Reset_Vars(Handle event, const char[] name, bool dontBroadcast)
   specialDayDamageProtection = false;
   isInInfectedHideTime = false;
   isPastCureFoundTime = false;
+  isFFARoundStalemate = false
   
   SetConVarInt(FindConVar("sv_gravity"), originalGravity);
   
@@ -379,6 +428,11 @@ public void Reset_Vars(Handle event, const char[] name, bool dontBroadcast)
   if (priorityToggle != null) {
     SetConVarBool(priorityToggle, false);
   }
+  
+  //Enable LR if it is disabled
+  ConVar hostiesLR = FindConVar("sm_hosties_lr");
+  if (hostiesLR != null)
+    SetConVarInt(hostiesLR, 1);
 }
 
 //Player death hook
@@ -480,6 +534,25 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
         EmitSoundToAllAny(hnsDeathSounds[randNum], client, SNDCHAN_USER_BASE, SNDLEVEL_RAIDSIREN); 
       }
     }
+    else if (specialDay == SPECIALDAY_FFADM || specialDay == SPECIALDAY_HUNGERGAMES) {
+      //Count number of alive players
+      int numAlive = 0;
+      int lastAliveClient = -1;
+      for (int i = 1; i < MaxClients; ++i) {
+        if (IsClientInGame(i) && IsPlayerAlive(i)) {
+          ++numAlive;
+          lastAliveClient = i;
+        }
+      }
+      
+      //Check if there is only 1 remaining player
+      if (numAlive == 1 && lastAliveClient != -1 && !isFFARoundStalemate) {
+        if (specialDay == SPECIALDAY_FFADM)
+          CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Free For All Winner", lastAliveClient, "FFA Deathmatch");
+        else if (specialDay == SPECIALDAY_HUNGERGAMES)
+          CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Free For All Winner", lastAliveClient, "Hunger Games");
+      }
+    }
   }
   
   return Plugin_Continue;
@@ -516,7 +589,9 @@ public Action Command_WT_Menu(int client, int args)
   
   //Create menu
   MainMenu = CreateMenu(MainMenuHandler);
-  SetMenuTitle(MainMenu, "Jailbreak Warden Tools");
+  char mainMenuTitle[255];
+  Format(mainMenuTitle, sizeof(mainMenuTitle), "Jailbreak Warden Tools (%s)", VERSION);
+  SetMenuTitle(MainMenu, mainMenuTitle);
   
   //Add menu items
   AddMenuItem(MainMenu, "Option_DrawTools", "Draw Tools");
@@ -605,10 +680,12 @@ public int MainMenuHandler(Menu menu, MenuAction action, int client, int param2)
       //Add menu items
       AddMenuItem(SpecialDaysMenu, "Option_Freeday", "Freeday");
       AddMenuItem(SpecialDaysMenu, "Option_LowGravFreeday", "Low Gravity Freeday");
+      AddMenuItem(SpecialDaysMenu, "Option_CustomDay", "Custom Special Day");
       AddMenuItem(SpecialDaysMenu, "Option_HNS", "Hide and Seek Day");
       AddMenuItem(SpecialDaysMenu, "Option_Warday", "Warday");
       AddMenuItem(SpecialDaysMenu, "Option_VirusDay", "Croatoan Virus Outbreak Day");
-      AddMenuItem(SpecialDaysMenu, "Option_CustomDay", "Custom Special Day");
+      AddMenuItem(SpecialDaysMenu, "Option_FFADM", "FFA Deathmatch Day");
+      AddMenuItem(SpecialDaysMenu, "Option_HungerGamesDay", "Hunger Games Day");
       
       DisplayMenu(SpecialDaysMenu, client, MENU_TIME_FOREVER);
     }
@@ -987,7 +1064,7 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
     
     //Check time in which special day was used
     if (GetTimeSinceRoundStart() >= GetConVarInt(cvar_specialday_starttime)) {
-      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Special Day - Too Late", GetConVarInt(cvar_specialday_starttime));
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Too Late", GetConVarInt(cvar_specialday_starttime));
       return;
     }
     
@@ -1062,56 +1139,8 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
       specialDayDamageProtection = true;
       damageProtectionHandle = CreateTimer(float(GetConVarInt(cvar_hns_ctfreezetime)) - GetConVarFloat(cvar_hns_tptime), SpecialDay_DamageProtection_End);
 
-      //Get warden position
-      float warden_origin[3];
-      float warden_angles[3];
-      GetClientAbsOrigin(client, warden_origin);
-      GetClientAbsAngles(client, warden_angles);
-      
-      //Create timer with pack
-      Handle pack;
-      teleportHandle = CreateDataTimer(GetConVarFloat(cvar_hns_tptime), Teleport_Start_T, pack);
-      ServerCommand("sm_freeze @t %d", RoundToFloor(GetConVarFloat(cvar_hns_tptime)));
-      
-      //Day name
-      WritePackString(pack, "hide and seek day");
-      
-      //Origin
-      WritePackFloat(pack, warden_origin[0]);
-      WritePackFloat(pack, warden_origin[1]);
-      WritePackFloat(pack, warden_origin[2]);
-      
-      //Angles
-      WritePackFloat(pack, warden_angles[0]);
-      WritePackFloat(pack, warden_angles[1]);
-      WritePackFloat(pack, warden_angles[2]);
-      
-      //Draw beam (rally point)
-      int excessDurationCount = RoundToFloor(GetConVarFloat(cvar_hns_tptime) / 10.0);
-      --excessDurationCount;
-      
-      if (excessDurationCount != 0) {
-        //Start timer to recreate beacon
-        Handle beampack;
-        CreateDataTimer(10.0, ExcessBeamSpawner, beampack);
-        WritePackCell(beampack, excessDurationCount);
-        
-        //Origin
-        WritePackFloat(beampack, warden_origin[0]);
-        WritePackFloat(beampack, warden_origin[1]);
-        WritePackFloat(beampack, warden_origin[2]);
-        
-        //RGB Colour
-        WritePackCell(beampack, currentColour[0]);
-        WritePackCell(beampack, currentColour[1]);
-        WritePackCell(beampack, currentColour[2]);
-        WritePackCell(beampack, currentColour[3]);
-      }
-
-      //Draw Beam
-      TE_SetupBeamRingPoint(warden_origin, 75.0, 75.5, g_BeamSprite, g_HaloSprite, 0, 0, 10.0, 10.0, 0.0, currentColour, 0, 0);
-      TE_SendToAll();
-      
+      //Teleport all players to warden beam
+      TeleportPlayersToWarden(client, GetConVarFloat(cvar_hns_tptime), "hide and seek day", Teleport_Start_T, TELEPORTTYPE_T);
     }
     else if (StrEqual(info, "Option_Warday")) {
       //Warday
@@ -1123,55 +1152,8 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
       specialDayDamageProtection = true;
       damageProtectionHandle = CreateTimer(GetConVarFloat(cvar_warday_tptime), SpecialDay_DamageProtection_End);
       
-      //Get warden position
-      float warden_origin[3];
-      float warden_angles[3];
-      GetClientAbsOrigin(client, warden_origin);
-      GetClientAbsAngles(client, warden_angles);
-      
-      //Create timer with pack
-      Handle pack;
-      teleportHandle = CreateDataTimer(GetConVarFloat(cvar_warday_tptime), Teleport_Start_T, pack);
-      ServerCommand("sm_freeze @t %d", RoundToFloor(GetConVarFloat(cvar_warday_tptime)));
-           
-      //Day name
-      WritePackString(pack, "warday");
-      
-      //Origin
-      WritePackFloat(pack, warden_origin[0]);
-      WritePackFloat(pack, warden_origin[1]);
-      WritePackFloat(pack, warden_origin[2]);
-      
-      //Angles
-      WritePackFloat(pack, warden_angles[0]);
-      WritePackFloat(pack, warden_angles[1]);
-      WritePackFloat(pack, warden_angles[2]);
-      
-      //Draw beam (rally point)
-      int excessDurationCount = RoundToFloor(GetConVarFloat(cvar_warday_tptime) / 10.0);
-      --excessDurationCount;
-      
-      if (excessDurationCount != 0) {
-        //Start timer to recreate beacon
-        Handle beampack;
-        CreateDataTimer(10.0, ExcessBeamSpawner, beampack);
-        WritePackCell(beampack, excessDurationCount);
-        
-        //Origin
-        WritePackFloat(beampack, warden_origin[0]);
-        WritePackFloat(beampack, warden_origin[1]);
-        WritePackFloat(beampack, warden_origin[2]);
-        
-        //RGB Colour
-        WritePackCell(beampack, currentColour[0]);
-        WritePackCell(beampack, currentColour[1]);
-        WritePackCell(beampack, currentColour[2]);
-        WritePackCell(beampack, currentColour[3]);
-      }
-
-      //Draw Beam
-      TE_SetupBeamRingPoint(warden_origin, 75.0, 75.5, g_BeamSprite, g_HaloSprite, 0, 0, 10.0, 10.0, 0.0, currentColour, 0, 0);
-      TE_SendToAll();
+      //Teleport all players to warden beam
+      TeleportPlayersToWarden(client, GetConVarFloat(cvar_warday_tptime), "warday", Teleport_Start_T, TELEPORTTYPE_T);
     }
     else if (StrEqual(info, "Option_VirusDay")) {
       //Check that we have 3 people total alive
@@ -1211,67 +1193,97 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
       //Virus Day
       CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Virus Day", RoundToNearest(GetConVarFloat(cvar_virusday_tptime)), RoundToNearest(GetConVarFloat(cvar_virusday_hidetime)));
       
-      //Get warden position
-      float warden_origin[3];
-      float warden_angles[3];
-      GetClientAbsOrigin(client, warden_origin);
-      GetClientAbsAngles(client, warden_angles);
-      
       //Create timer for infection start
       infectionStartTimer = CreateTimer(GetConVarFloat(cvar_virusday_tptime) + GetConVarFloat(cvar_virusday_hidetime), VirusDay_StartInfection);
       
       //Is in hide time
       isInInfectedHideTime = true;
       
-      //Create timer with pack
-      Handle pack;
-      teleportHandle = CreateDataTimer(GetConVarFloat(cvar_virusday_tptime), Teleport_Start_All, pack);
-      ServerCommand("sm_freeze @all %d", RoundToFloor(GetConVarFloat(cvar_virusday_tptime)));
-           
-      //Day name
-      WritePackString(pack, "Croatoan Virus Outbreak Day");
-      
-      //Origin
-      WritePackFloat(pack, warden_origin[0]);
-      WritePackFloat(pack, warden_origin[1]);
-      WritePackFloat(pack, warden_origin[2]);
-      
-      //Angles
-      WritePackFloat(pack, warden_angles[0]);
-      WritePackFloat(pack, warden_angles[1]);
-      WritePackFloat(pack, warden_angles[2]);
-      
-      //Draw beam (rally point)
-      int excessDurationCount = RoundToFloor(GetConVarFloat(cvar_virusday_tptime) / 10.0);
-      --excessDurationCount;
-      
-      if (excessDurationCount != 0) {
-        //Start timer to recreate beacon
-        Handle beampack;
-        CreateDataTimer(10.0, ExcessBeamSpawner, beampack);
-        WritePackCell(beampack, excessDurationCount);
-        
-        //Origin
-        WritePackFloat(beampack, warden_origin[0]);
-        WritePackFloat(beampack, warden_origin[1]);
-        WritePackFloat(beampack, warden_origin[2]);
-        
-        //RGB Colour
-        WritePackCell(beampack, currentColour[0]);
-        WritePackCell(beampack, currentColour[1]);
-        WritePackCell(beampack, currentColour[2]);
-        WritePackCell(beampack, currentColour[3]);
-      }
-
-      //Draw Beam
-      TE_SetupBeamRingPoint(warden_origin, 75.0, 75.5, g_BeamSprite, g_HaloSprite, 0, 0, 10.0, 10.0, 0.0, currentColour, 0, 0);
-      TE_SendToAll();
+      //Teleport all players to warden beam
+      TeleportPlayersToWarden(client, GetConVarFloat(cvar_virusday_tptime), "Croatoan Virus Outbreak Day", Teleport_Start_All, TELEPORTTYPE_ALL);
     }
+    else if (StrEqual(info, "Option_FFADM")) {
+      specialDay = SPECIALDAY_FFADM;
+      
+      //Remove radar
+      for (int i = 1; i <= MaxClients; ++i) {
+        if (IsClientInGame(i) && IsPlayerAlive(i)) {
+          RemoveRadar(i);
+        }
+      }
+      
+      //Create timer to slay all players
+      float timer_time = float(GetConVarInt(cvar_ffadm_slaytime) - GetTimeSinceRoundStart());
+      freeforallRoundEndHandle = CreateTimer(timer_time, Timer_FFADMRoundEnds);
+      
+      //Turn on friendly fire for FFA
+      SetConVarBool(FindConVar("mp_friendlyfire"), true);
+      SetConVarBool(FindConVar("mp_teammates_are_enemies"), true);
+      
+      //Create timer for damage protection
+      specialDayDamageProtection = true;
+      damageProtectionHandle = CreateTimer(GetConVarFloat(cvar_ffadm_tptime) + GetConVarFloat(cvar_ffadm_hidetime), SpecialDay_DamageProtection_End);
+      
+      //FFADM Day message
+      CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - FFADM Day", RoundToNearest(GetConVarFloat(cvar_ffadm_tptime)), RoundToNearest(GetConVarFloat(cvar_ffadm_hidetime)));
+      
+      //Create timer for ffa dm start
+      freeforallStartTimer = CreateTimer(GetConVarFloat(cvar_ffadm_tptime) + GetConVarFloat(cvar_ffadm_hidetime), FFADM_Start);
+      
+      //Teleport all players to warden beam
+      TeleportPlayersToWarden(client, GetConVarFloat(cvar_ffadm_tptime), "FFA Deathmatch", Teleport_Start_All, TELEPORTTYPE_ALL);
+    }
+    else if (StrEqual(info, "Option_HungerGamesDay")) {
+      specialDay = SPECIALDAY_HUNGERGAMES;
+      
+      //Remove radar
+      for (int i = 1; i <= MaxClients; ++i) {
+        if (IsClientInGame(i) && IsPlayerAlive(i)) {
+          RemoveRadar(i);
+        }
+      }
+      
+      //Create timer to slay all players
+      float timer_time = float(GetConVarInt(cvar_hungergames_slaytime) - GetTimeSinceRoundStart());
+      freeforallRoundEndHandle = CreateTimer(timer_time, Timer_HungerGamesRoundEnds);
+      
+      //Turn on friendly fire for FFA
+      SetConVarBool(FindConVar("mp_friendlyfire"), true);
+      SetConVarBool(FindConVar("mp_teammates_are_enemies"), true);
+      
+      //Create timer for damage protection
+      specialDayDamageProtection = true;
+      damageProtectionHandle = CreateTimer(GetConVarFloat(cvar_hungergames_tptime) + GetConVarFloat(cvar_hungergames_hidetime), SpecialDay_DamageProtection_End);
+      
+      //Strip all weapons
+      for (int i = 1; i < MaxClients; ++i) {
+        if (IsClientInGame(i) && IsPlayerAlive(i)) {
+          //Strip all current weapons from client and give them a knife
+          StripWeapons(i);
+          GivePlayerItem(i, "weapon_knife");
+        }
+      }
+      
+      //Hunger Games Day message
+      CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Hunger Games Day", RoundToNearest(GetConVarFloat(cvar_hungergames_tptime)), RoundToNearest(GetConVarFloat(cvar_hungergames_hidetime)));
+      
+      //Create timer for start
+      freeforallStartTimer = CreateTimer(GetConVarFloat(cvar_hungergames_tptime) + GetConVarFloat(cvar_hungergames_hidetime), HungerGames_Start);
+      
+      //Teleport all players to warden beam
+      TeleportPlayersToWarden(client, GetConVarFloat(cvar_hungergames_tptime), "Hunger Games", Teleport_Start_All, TELEPORTTYPE_ALL);
+    }
+    
     else if (StrEqual(info, "Option_CustomDay")) {
       //Custom day
       specialDay = SPECIALDAY_CUSTOM;
       CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Custom");
     }
+    
+    //Disable LR on special days
+    ConVar hostiesLR = FindConVar("sm_hosties_lr");
+    if (hostiesLR != null)
+      SetConVarInt(hostiesLR, 0);
     
     isSpecialDay = true;
     ++numSpecialDays;
@@ -1525,7 +1537,7 @@ public Action Teleport_Start_T(Handle timer, Handle pack)
   }
   
   //Report Teleported
-  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Teleport Start", buffer);
+  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Teleport Start T", buffer);
   
   teleportHandle = null;
 }
@@ -2103,7 +2115,6 @@ int getTeamDMNumTeamsAlive()
   return GetArraySize(teamsArray);
 }
 
-
 //Called when prisoners win HNS day
 public Action Timer_HNSPrisonersWin(Handle timer)
 {
@@ -2205,12 +2216,7 @@ void VirusDay_InfectClient(int client, bool printMessage)
   EmitSoundToAllAny(infectSounds[randNum], client, SNDCHAN_USER_BASE, SNDLEVEL_RAIDSIREN); 
   
   //Strip all weapons
-  for (int i = 0; i < 44; i++) { 
-    int index = GetEntPropEnt(client, Prop_Send, "m_hMyWeapons", i);
-    
-    if(index && IsValidEdict(index))
-      RemoveWeaponDrop(client, index); 
-  }
+  StripWeapons(client);
   
   //Give them knife
   GivePlayerItem(client, "weapon_knife");
@@ -2358,7 +2364,16 @@ void SafeDelete(int entity)
     AcceptEntityInput(entity, "Kill");
 }  
 
-//Helper
+//Helpers
+void StripWeapons(int client) {
+  for (int i = 0; i < 44; i++) { 
+    int index = GetEntPropEnt(client, Prop_Send, "m_hMyWeapons", i);
+    
+    if(index && IsValidEdict(index))
+      RemoveWeaponDrop(client, index);
+  }
+}
+
 void RemoveWeaponDrop(int client, int entity) 
 {
   if (GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity") != client) {
@@ -2510,7 +2525,161 @@ public void Disable_Medics()
     if (GetEntPropFloat(entity, Prop_Data, "m_flDamage") < 0) {
       AcceptEntityInput(entity, "Disable");
     }
-	}
+  }
+}
+
+//Called when FFADM round ends
+public Action Timer_FFADMRoundEnds(Handle timer)
+{
+  //Set FFA to stalement so no winner is picked based on deaths
+  isFFARoundStalemate = true;
+
+  for (int i = 1; i <= MaxClients; ++i) {
+    if (IsClientInGame(i) && IsPlayerAlive(i)) {
+      ForcePlayerSuicide(i);
+    }
+  }
+  
+  //Print round end message
+  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - FFADM Round Over");
+  
+  //Reset timer handle
+  freeforallRoundEndHandle = null;
+}
+
+//Timer called once FFADM day starts
+public Action FFADM_Start(Handle timer)
+{
+  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - FFADM Started");
+  
+  freeforallStartTimer = null;
+  
+  return Plugin_Handled;
+}
+
+//Called when hunger games round ends
+public Action Timer_HungerGamesRoundEnds(Handle timer)
+{
+  //Set FFA to stalement so no winner is picked based on deaths
+  isFFARoundStalemate = true;
+
+  for (int i = 1; i <= MaxClients; ++i) {
+    if (IsClientInGame(i) && IsPlayerAlive(i)) {
+      ForcePlayerSuicide(i);
+    }
+  }
+  
+  //Print round end message
+  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Hunger Games Round Over");
+  
+  //Reset timer handle
+  freeforallRoundEndHandle = null;
+}
+
+//Timer called once hunger games start
+public Action HungerGames_Start(Handle timer)
+{
+  //For each player, randomly give them: health, primary weapon, secondary weapon, and grenades
+  char primaryWeapons[23][] = {"weapon_ak47","weapon_aug","weapon_awp","weapon_bizon","weapon_famas","weapon_g3sg1","weapon_galilar","weapon_m249","weapon_m4a1","weapon_m4a1_silencer","weapon_mac10","weapon_mag7","weapon_mp7","weapon_mp9","weapon_negev","weapon_nova","weapon_p90","weapon_sawedoff","weapon_scar20","weapon_sg556","weapon_ssg08","weapon_ump45","weapon_xm1014"};
+  char secondaryWeapons[10][] = {"weapon_cz75a","weapon_deagle","weapon_fiveseven","weapon_elite","weapon_glock","weapon_hkp2000","weapon_p250","weapon_revolver","weapon_usp_silencer","weapon_tec9"};
+  char grenades[6][] = {"weapon_decoy","weapon_flashbang","weapon_hegrenade","weapon_incgrenade","weapon_molotov","weapon_smokegrenade"};
+  
+  for (int i = 1; i < MaxClients; ++i) {
+    if (IsClientInGame(i) && IsPlayerAlive(i)) {
+      //Strip all current weapons from client
+      StripWeapons(i);
+      
+      //Give them knife
+      GivePlayerItem(i, "weapon_knife");
+      
+      //Give player random health
+      float randomHealth = GetRandomFloat(GetConVarFloat(cvar_hungergames_min_random_health), GetConVarFloat(cvar_hungergames_max_random_health));
+      SetEntProp(i, Prop_Data, "m_iHealth", RoundToFloor(randomHealth));
+      
+      //Give player full armour
+      SetEntProp(i, Prop_Data, "m_ArmorValue", 100, 1);
+      
+      //Give player random primary
+      int randNum = GetRandomInt(0, sizeof(primaryWeapons) - 1);
+      GivePlayerItem(i, primaryWeapons[randNum]);
+        
+      //Give player random secondary
+      randNum = GetRandomInt(0, sizeof(secondaryWeapons) - 1);
+      GivePlayerItem(i, secondaryWeapons[randNum]);
+      
+      //Give player random grenades
+      randNum = GetRandomInt(0, sizeof(grenades) - 1);
+      GivePlayerItem(i, grenades[randNum]);
+      
+    }
+  }
+
+  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Hunger Games Started");
+  
+  freeforallStartTimer = null;
+  
+  return Plugin_Handled;
+}
+
+//Teleports players to beam that spawns on wardens location
+//Players are also frozen before being teleported
+//Uses: teleportHandle as handle (should be set to null in teleportFunc)
+//teleportFunc is: Teleport_Start_All, Teleport_Start_T
+//teleportType is: 0 for all players, 1 for T's
+void TeleportPlayersToWarden(int warden, float tptime, char[] specialDayName, Timer teleportFunc, int teleportType)
+{
+  float warden_origin[3];
+  float warden_angles[3];
+  GetClientAbsOrigin(warden, warden_origin);
+  GetClientAbsAngles(warden, warden_angles);
+ 
+  //Create timer with pack
+  Handle pack;
+  teleportHandle = CreateDataTimer(tptime, teleportFunc, pack);
+  
+  if (teleportType == TELEPORTTYPE_ALL)
+    ServerCommand("sm_freeze @all %d", RoundToFloor(tptime));
+  else if (teleportType == TELEPORTTYPE_T)
+    ServerCommand("sm_freeze @t %d", RoundToFloor(tptime));
+    
+  //Day name
+  WritePackString(pack, specialDayName);
+  
+  //Origin
+  WritePackFloat(pack, warden_origin[0]);
+  WritePackFloat(pack, warden_origin[1]);
+  WritePackFloat(pack, warden_origin[2]);
+  
+  //Angles
+  WritePackFloat(pack, warden_angles[0]);
+  WritePackFloat(pack, warden_angles[1]);
+  WritePackFloat(pack, warden_angles[2]);
+  
+  //Draw beam (rally point)
+  int excessDurationCount = RoundToFloor(tptime / 10.0);
+  --excessDurationCount;
+  
+  if (excessDurationCount != 0) {
+    //Start timer to recreate beacon
+    Handle beampack;
+    CreateDataTimer(10.0, ExcessBeamSpawner, beampack);
+    WritePackCell(beampack, excessDurationCount);
+    
+    //Origin
+    WritePackFloat(beampack, warden_origin[0]);
+    WritePackFloat(beampack, warden_origin[1]);
+    WritePackFloat(beampack, warden_origin[2]);
+    
+    //RGB Colour
+    WritePackCell(beampack, currentColour[0]);
+    WritePackCell(beampack, currentColour[1]);
+    WritePackCell(beampack, currentColour[2]);
+    WritePackCell(beampack, currentColour[3]);
+  }
+
+  //Draw Beam
+  TE_SetupBeamRingPoint(warden_origin, 75.0, 75.5, g_BeamSprite, g_HaloSprite, 0, 0, 10.0, 10.0, 0.0, currentColour, 0, 0);
+  TE_SendToAll();
 }
 
 //
