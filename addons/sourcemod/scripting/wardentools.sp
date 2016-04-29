@@ -13,62 +13,6 @@ UserMsg g_FadeUserMsgId; //For Blind
 #define VERSION "1.19"
 #define CHAT_TAG_PREFIX "[{pink}Warden Tools{default}] "
 
-int g_BeamSprite;
-int g_HaloSprite;
-
-//Cvars
-ConVar cvar_maxbeams = null;
-ConVar cvar_maxunits = null;
-ConVar cvar_maxspecialdays = null;
-ConVar cvar_hns_cthealth = null;
-ConVar cvar_hns_tptime = null;
-ConVar cvar_shark_health = null;
-ConVar cvar_shark_duration = null;
-ConVar cvar_shark_timeleft_warning = null;
-ConVar cvar_hns_thealth = null;
-ConVar cvar_hns_ctfreezetime = null;
-ConVar cvar_hns_hiderswintime = null;
-ConVar cvar_warday_tptime = null;
-ConVar cvar_miccheck_time = null;
-ConVar cvar_specialday_starttime = null;
-ConVar cvar_virusday_tptime = null;
-ConVar cvar_virusday_hidetime = null;
-ConVar cvar_virusday_noninfectedwintime = null;
-ConVar cvar_virusday_infectedhealth = null;
-ConVar cvar_virusday_infectedspeed = null;
-ConVar cvar_virusday_infectedgravity = null;
-ConVar cvar_virusday_min_drain = null;
-ConVar cvar_virusday_max_drain = null;
-ConVar cvar_virusday_drain_interval = null;
-ConVar cvar_ffadm_tptime = null;
-ConVar cvar_ffadm_hidetime = null;
-ConVar cvar_ffadm_slaytime = null;
-ConVar cvar_hungergames_tptime = null;
-ConVar cvar_hungergames_hidetime = null;
-ConVar cvar_hungergames_slaytime = null;
-ConVar cvar_hungergames_min_random_health = null;
-ConVar cvar_hungergames_max_random_health = null;
-
-Menu MainMenu = null;
-Menu GameMenu = null;
-Menu DrawMenu = null;
-
-//Settings
-float curDuration = 20.0;
-
-int redColour[4] = {255, 0, 0, 200};
-int greenColour[4] = {0, 255, 0, 200};
-int blueColour[4] = {0, 0, 255, 200};
-int purpleColour[4] = {128, 112, 214, 200};
-int yellowColour[4] = {255, 255, 0, 200};
-int cyanColour[4] = {0, 255, 255, 200};
-int pinkColour[4] = {255, 105, 180, 200};
-int orangeColour[4] = {255, 140, 0, 200};
-int whiteColour[4] = {254, 254, 254, 200};
-int blackColour[4] = {1, 1, 1, 200};
-
-int currentColour[4] = {255, 0, 0, 200}; //red is default
-
 #define COLOUR_DEFAULT 0
 #define COLOUR_RED 1
 #define COLOUR_GREEN 2
@@ -111,32 +55,91 @@ int currentColour[4] = {255, 0, 0, 200}; //red is default
 
 #define HIDE_RADAR_CSGO 1<<12
 
-int currentColourCode = COLOUR_RED;
+//Materials
+int g_BeamSprite;
+int g_HaloSprite;
 
-//Important
+//Cvars
+ConVar cvar_maxbeams = null;
+ConVar cvar_maxunits = null;
+ConVar cvar_maxspecialdays = null;
+ConVar cvar_hns_cthealth = null;
+ConVar cvar_hns_tptime = null;
+ConVar cvar_shark_health = null;
+ConVar cvar_shark_duration = null;
+ConVar cvar_shark_timeleft_warning = null;
+ConVar cvar_hns_thealth = null;
+ConVar cvar_hns_ctfreezetime = null;
+ConVar cvar_hns_hiderswintime = null;
+ConVar cvar_warday_tptime = null;
+ConVar cvar_miccheck_time = null;
+ConVar cvar_specialday_starttime = null;
+ConVar cvar_virusday_tptime = null;
+ConVar cvar_virusday_hidetime = null;
+ConVar cvar_virusday_noninfectedwintime = null;
+ConVar cvar_virusday_infectedhealth = null;
+ConVar cvar_virusday_infectedspeed = null;
+ConVar cvar_virusday_infectedgravity = null;
+ConVar cvar_virusday_min_drain = null;
+ConVar cvar_virusday_max_drain = null;
+ConVar cvar_virusday_drain_interval = null;
+ConVar cvar_ffadm_tptime = null;
+ConVar cvar_ffadm_hidetime = null;
+ConVar cvar_ffadm_slaytime = null;
+ConVar cvar_hungergames_tptime = null;
+ConVar cvar_hungergames_hidetime = null;
+ConVar cvar_hungergames_slaytime = null;
+ConVar cvar_hungergames_min_random_health = null;
+ConVar cvar_hungergames_max_random_health = null;
+
+Menu MainMenu = null;
+Menu GameMenu = null;
+Menu DrawMenu = null;
+
+//Beam Settings
+float curDuration = 20.0;
+int redColour[4] = {255, 0, 0, 200};
+int greenColour[4] = {0, 255, 0, 200};
+int blueColour[4] = {0, 0, 255, 200};
+int purpleColour[4] = {128, 112, 214, 200};
+int yellowColour[4] = {255, 255, 0, 200};
+int cyanColour[4] = {0, 255, 255, 200};
+int pinkColour[4] = {255, 105, 180, 200};
+int orangeColour[4] = {255, 140, 0, 200};
+int whiteColour[4] = {254, 254, 254, 200};
+int blackColour[4] = {1, 1, 1, 200};
+int currentColour[4] = {255, 0, 0, 200}; //red is default
+int currentColourCode = COLOUR_RED;
 int currentBeamsUsed = 0;
+
+//Settings
+int newRoundTimeElapsed = 0;
+int originalGravity = 800;
+bool specialDayDamageProtection = false;
 bool shouldBlindT = false;
 bool shouldFreezeT = false;
 Handle freezeTimer = null; 
 bool isBlind[MAXPLAYERS+1] = false;
+Handle teleportHandle = null;
+Handle damageProtectionHandle = null;
+
 bool isHighlighted[MAXPLAYERS+1] = false;
 int highlightedColour[MAXPLAYERS+1] = COLOUR_DEFAULT;
+bool isInHighlightTeamDM = false;
+
 bool isSpecialDay = false;
 int specialDay = SPECIALDAY_NONE;
+
+ArrayList micSwapTargets;
 bool micCheckConducted = false;
 bool isInMicCheckTime = false;
-bool isInHighlightTeamDM = false;
+
 bool isShark[MAXPLAYERS+1] = false;
-int originalGravity = 800;
-bool specialDayDamageProtection = false;
+
 bool isInfected[MAXPLAYERS+1] = false;
 bool isInInfectedHideTime = false;
 int infectedIcon[MAXPLAYERS+1] = {-1, ...};
-
 bool isPastCureFoundTime = false;
-
-Handle teleportHandle = null;
-Handle damageProtectionHandle = null;
 Handle virusdayNonInfectedWinHandle = null;
 Handle drainTimer = null;
 Handle infectionStartTimer = null;
@@ -145,10 +148,7 @@ Handle freeforallRoundEndHandle = null;
 Handle freeforallStartTimer = null;
 bool isFFARoundStalemate = false;
 
-int newRoundTimeElapsed = 0;
 Handle hnsPrisonersWinHandle = null;
-
-ArrayList micSwapTargets;
 
 //Per map settings
 int numSpecialDays = 0;
@@ -158,7 +158,6 @@ bool isFirstRound = false;
 int g_DefaultColors_c[7][4] = { {255,255,255,255}, {255,0,0,255}, {0,255,0,255}, {0,0,255,255}, {255,255,0,255}, {0,255,255,255}, {255,0,255,255} };
 float LastLaser[MAXPLAYERS+1][3];
 bool LaserEnabled[MAXPLAYERS+1] = {false, ...};
-
 
 public Plugin myinfo =
 {
