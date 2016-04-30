@@ -56,9 +56,10 @@
   {
     "en"			"This round is a {green}freeday{default}!"
   }
-  "SpecialDay - Low Gravity Freeday"
+  "SpecialDay - Round Modifier Set"
   {
-    "en"			"This round is a {green}low gravity freeday{default}!"
+    "#format"		"{1:s}"
+    "en"			"The following round modifier has been set: {green}{1}{default}"
   }
   "SpecialDay - Warday"
   {
@@ -68,12 +69,12 @@
   "SpecialDay - Virus Day"
   {
     "#format"		"{1:d},{2:d}"
-    "en"			"This round is a {green}Croatoan Virus Outbreak Day{default}! All players will be teleported to the start beacon in {green}{1}{default} seconds. You then have {green}{2}{default} seconds to run!"
+    "en"			"This round is a {green}Zombie Day{default}! All players will be teleported to the start beacon in {green}{1}{default} seconds. You then have {green}{2}{default} seconds to run!"
   }
   "SpecialDay - Virus Day First Infected"
   {
     "#format"		"{1:N},{2:N}"
-    "en"			"The Croatoan Virus has started to spread. {green}{1}{default} and {green}{2}{default} are the first two infected!"
+    "en"			"The Zombie Virus has started to spread. {green}{1}{default} and {green}{2}{default} are the first two infected!"
   }
   "SpecialDay - Virus Day New Infected"
   {
@@ -82,7 +83,7 @@
   }
   "SpecialDay - Virus Day All Infected"
   {
-    "en"			"Everybody has been infected with the {red}Croatoan Virus{default}! There were no survivors. You are all doomed."
+    "en"			"Everybody has been infected with the {red}Zombie Virus{default}! There were no survivors. You are all doomed."
   }
   "SpecialDay - Virus Day Non Infected Win"
   {
@@ -99,7 +100,7 @@
   }
   "SpecialDay - Virus Day Aborted"
   {
-    "en"			"The {green}Croatoan Virus Outbreak Day{default} round was aborted because not enough players were alive when picking the infected."
+    "en"			"The {green}Zombie Day{default} was aborted because not enough players were alive when picking the infected."
   }
   "SpecialDay - Virus Day HUD"
   {

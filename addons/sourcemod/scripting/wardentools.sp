@@ -10,7 +10,7 @@
 UserMsg g_FadeUserMsgId; //For Blind
 
 //Defines
-#define VERSION "1.19"
+#define VERSION "1.20"
 #define CHAT_TAG_PREFIX "[{pink}Warden Tools{default}] "
 
 #define COLOUR_DEFAULT 0
@@ -28,12 +28,17 @@ UserMsg g_FadeUserMsgId; //For Blind
 #define SPECIALDAY_NONE 0
 #define SPECIALDAY_CUSTOM 1
 #define SPECIALDAY_FREEDAY 2
-#define SPECIALDAY_LOW_GRAVITY_FREEDAY 3
+#define SPECIALDAY_ROUNDMODIFIER 3
 #define SPECIALDAY_HNS 4
 #define SPECIALDAY_WARDAY 5
 #define SPECIALDAY_VIRUSDAY 6
 #define SPECIALDAY_FFADM 7
 #define SPECIALDAY_HUNGERGAMES 8
+
+#define ROUNDMODIFIER_NONE 0
+#define ROUNDMODIFIER_LOWGRAVITY 1
+#define ROUNDMODIFIER_FASTSPEED 2
+#define ROUNDMODIFIER_WALKINGONLY 3
 
 #define TELEPORTTYPE_ALL 0
 #define TELEPORTTYPE_T 1
@@ -91,10 +96,16 @@ ConVar cvar_hungergames_hidetime = null;
 ConVar cvar_hungergames_slaytime = null;
 ConVar cvar_hungergames_min_random_health = null;
 ConVar cvar_hungergames_max_random_health = null;
+ConVar cvar_roundmodifier_lowgravity = null;
+ConVar cvar_roundmodifier_walkingonly_maxspeed = null;
+ConVar cvar_roundmodifier_fastspeed = null;
+ConVar cvar_roundmodifier_fastspeed_gravity = null;
 
+//Menus
 Menu MainMenu = null;
 Menu GameMenu = null;
 Menu DrawMenu = null;
+Menu SpecialDaysMenu = null;
 
 //Beam Settings
 float curDuration = 20.0;
@@ -114,7 +125,8 @@ int currentBeamsUsed = 0;
 
 //Settings
 int newRoundTimeElapsed = 0;
-int originalGravity = 800;
+int orig_sv_gravity = 800;
+int orig_sv_maxspeed = 320;
 bool specialDayDamageProtection = false;
 bool shouldBlindT = false;
 bool shouldFreezeT = false;
@@ -127,8 +139,9 @@ bool isHighlighted[MAXPLAYERS+1] = false;
 int highlightedColour[MAXPLAYERS+1] = COLOUR_DEFAULT;
 bool isInHighlightTeamDM = false;
 
-bool isSpecialDay = false;
 int specialDay = SPECIALDAY_NONE;
+
+int roundModifier = ROUNDMODIFIER_NONE;
 
 ArrayList micSwapTargets;
 bool micCheckConducted = false;
@@ -168,6 +181,10 @@ public Plugin myinfo =
   url = "http://www.invexgaming.com.au"
 };
 
+/*********************************
+ *   Fowards
+ *********************************/
+
 // Plugin Start
 public void OnPluginStart()
 {
@@ -186,6 +203,7 @@ public void OnPluginStart()
   //Hooks
   HookEvent("round_start", Event_RoundStart, EventHookMode_Pre);
   HookEvent("player_death", Event_PlayerDeath, EventHookMode_Pre);
+  HookEvent("player_spawn", Event_PlayerSpawn, EventHookMode_Post);
 
   //For blind
   g_FadeUserMsgId = GetUserMessageId("Fade");
@@ -200,7 +218,7 @@ public void OnPluginStart()
   //Cvars
   cvar_maxbeams = CreateConVar("sm_wardentools_maxbeams", "7", "Maximum number of beams that can be spawned at any given time (def. 7)");
   cvar_maxunits = CreateConVar("sm_wardentools_maxunits", "1500", "Maximum number of units a beam can be spawned from the player (def. 1000)");
-  cvar_maxspecialdays = CreateConVar("sm_wardentools_maxspecialdays", "3", "Maximum number of special days per map (def. 3)");
+  cvar_maxspecialdays = CreateConVar("sm_wardentools_maxspecialdays", "4", "Maximum number of special days per map (def. 4)");
   cvar_specialday_starttime = CreateConVar("sm_wardentools_specialday_starttime", "60.0", "The amount of time the warden has to trigger a special day (def. 60.0)");
   cvar_hns_cthealth = CreateConVar("sm_wardentools_hns_cthealth", "32000", "Health CT's get (def. 32000)");
   cvar_hns_thealth = CreateConVar("sm_wardentools_hns_thealth", "65", "Health T's get (def. 65)");
@@ -233,11 +251,17 @@ public void OnPluginStart()
   cvar_hungergames_min_random_health = CreateConVar("sm_wardentools_hungergames_min_random_health", "100.0", "The lower bound for randomised health for hunger games (def. 75.0)");
   cvar_hungergames_max_random_health = CreateConVar("sm_wardentools_hungergames_max_random_health", "175.0", "The upper bound for randomised health for hunger games (def. 125.0)");
   
+  cvar_roundmodifier_lowgravity = CreateConVar("sm_wardentools_roundmodifier_lowgravity", "250", "The gravity all players play with (def. 250)");
+  cvar_roundmodifier_fastspeed = CreateConVar("sm_wardentools_roundmodifier_fastspeed", "1.75", "The speed all players play with (def. 1.75)");
+  cvar_roundmodifier_fastspeed_gravity = CreateConVar("sm_wardentools_roundmodifier_fastspeed_gravity", "0.65", "The gravity to aid fast speed (def. 0.65)");
+  cvar_roundmodifier_walkingonly_maxspeed = CreateConVar("sm_wardentools_roundmodifier_walkingonly_maxspeed", "125", "The maximum speed all players play with (def. 125)");
+  
   //Create array
   micSwapTargets = CreateArray();
   
-  //Gravity
-  originalGravity = GetConVarInt(FindConVar("sv_gravity"));
+  //Original convars
+  orig_sv_gravity = GetConVarInt(FindConVar("sv_gravity"));
+  orig_sv_maxspeed = GetConVarInt(FindConVar("sv_maxspeed"));
   
   //SDKHooks
   int iMaxClients = GetMaxClients();
@@ -314,6 +338,64 @@ public void OnClientPutInServer(int client)
   SDKHook(client, SDKHook_WeaponCanUse, BlockPickup);
 }
 
+//Called when a player takes damage
+public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3])
+{
+  //Ignore invalid entities
+  if (!(victim > 0 && victim <= MaxClients) || !(attacker > 0 && attacker <= MaxClients)) {
+    return Plugin_Continue;
+  }
+  
+  if (isInHighlightTeamDM) {
+    
+    //Check for CT's trying to kill each other
+    if (GetClientTeam(victim) == CS_TEAM_CT && GetClientTeam(attacker) == CS_TEAM_CT) {
+      return Plugin_Handled;
+    }
+    
+    //Check for T's trying to kill team mates
+    if (GetClientTeam(victim) == CS_TEAM_T && GetClientTeam(attacker) == CS_TEAM_T) {
+      if (isHighlighted[victim] && isHighlighted[attacker]) {
+        if (highlightedColour[victim] == highlightedColour[attacker]) {
+          return Plugin_Handled;
+        }
+      }
+      
+      //Check for T's killing non highlighted T's
+      if (!isHighlighted[attacker]) {
+        return Plugin_Handled;
+      }
+      
+      if (isHighlighted[attacker] && !isHighlighted[victim]) {
+        return Plugin_Handled;
+      }
+    }
+  }
+  
+  //If damage should be blocked for another reason
+  if (specialDay) {
+    if (specialDay == SPECIALDAY_VIRUSDAY) {
+      if (isInfected[attacker] && !isInfected[victim]) {
+        VirusDay_InfectClient(victim, true);
+      }
+      //Non infected can harm the infected
+      else if (!isInfected[attacker] && isInfected[victim]) {
+        return Plugin_Continue;
+      }
+      
+      return Plugin_Handled;
+    }
+    else if (specialDayDamageProtection) {
+      return Plugin_Handled;
+    }
+  }
+  
+  return Plugin_Continue;
+}
+
+/*********************************
+ *  Events
+ *********************************/
 //Round start
 public void Event_RoundStart(Handle event, const char[] name, bool dontBroadcast)
 {
@@ -325,113 +407,7 @@ public void Event_RoundStart(Handle event, const char[] name, bool dontBroadcast
     specialDay = SPECIALDAY_FREEDAY;
     CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Freeday");
     isFirstRound = false;
-    isSpecialDay = true;
   }
-}
-
-//Reset all variables of importance
-void Reset_Vars()
-{
-  //Close menu handler when round starts/ends
-  if (MainMenu != null) delete MainMenu;
-  if (GameMenu != null) delete GameMenu;
-  if (DrawMenu != null) delete DrawMenu;
-  if (hnsPrisonersWinHandle != null) delete hnsPrisonersWinHandle;
-  if (teleportHandle != null) delete teleportHandle;
-  if (damageProtectionHandle != null) delete damageProtectionHandle;
-  if (virusdayNonInfectedWinHandle != null) delete virusdayNonInfectedWinHandle;
-  if (drainTimer != null) delete drainTimer;
-  if (infectionStartTimer != null) delete infectionStartTimer;
-  if (freeforallRoundEndHandle != null) delete freeforallRoundEndHandle; 
-  if (freeforallStartTimer != null) delete freeforallStartTimer;
-  
-  //Reset settings
-  currentBeamsUsed = 0;
-  curDuration = 20.0;
-  shouldBlindT = false;
-  shouldFreezeT = false;
-  freezeTimer = null; 
-  currentColour = redColour;
-  currentColourCode = COLOUR_RED;
-  isSpecialDay = false;
-  specialDay = SPECIALDAY_NONE;
-  micCheckConducted = false;
-  isInMicCheckTime = false;
-  isInHighlightTeamDM = false;
-  specialDayDamageProtection = false;
-  isInInfectedHideTime = false;
-  isPastCureFoundTime = false;
-  isFFARoundStalemate = false
-  
-  SetConVarInt(FindConVar("sv_gravity"), originalGravity);
-  
-  newRoundTimeElapsed = GetTime();
-  
-  ClearArray(micSwapTargets);
- 
-  for (int i = 1; i <= MaxClients; ++i) {
-    if (!IsClientInGame(i))
-      continue;
-      
-    //Remove enabled lasers for all
-    RemoveLaserAction(i, 0);
-    
-    //Unblind all
-    if (isBlind[i]) {
-      Handle fadePack;
-      CreateDataTimer(0.0, UnfadeClient, fadePack);
-      WritePackCell(fadePack, i);
-      WritePackCell(fadePack, 0);
-      WritePackCell(fadePack, 0);
-      WritePackCell(fadePack, 0);
-      WritePackCell(fadePack, 0);
-      
-      isBlind[i] = false;
-    }
-    
-    //Unhighlight
-    if (isHighlighted[i] && IsClientInGame(i) && IsPlayerAlive(i)) {
-      SetEntityRenderColor(i, 255, 255, 255, 255);
-    }
-    
-    isHighlighted[i] = false;
-    highlightedColour[i] = COLOUR_DEFAULT;
-    
-    //Reset shark
-    isShark[i] = false;
-    
-    //Reset infected related things
-    if (isInfected[i]) {
-      //Icon
-      SafeDelete(infectedIcon[i]);
-      infectedIcon[i] = -1;
-      
-      //Reset speed
-      SetEntPropFloat(i, Prop_Data, "m_flLaggedMovementValue", 1.0);
-    }
-    
-    //Reset overlays
-    ShowOverlayToClient(i, "");
-    
-    //Reset infected
-    isInfected[i] = false;
-  }
-  
-  //Disable Friendly Fire
-  SetConVarBool(FindConVar("mp_friendlyfire"), false);
-  SetConVarBool(FindConVar("mp_teammates_are_enemies"), false);
-  
-  //Disable priority speaker for new warden
-  ConVar priorityToggle = FindConVar("sm_wardentalk2_enabled");
-  
-  if (priorityToggle != null) {
-    SetConVarBool(priorityToggle, false);
-  }
-  
-  //Enable LR if it is disabled
-  ConVar hostiesLR = FindConVar("sm_hosties_lr");
-  if (hostiesLR != null)
-    SetConVarInt(hostiesLR, 1);
 }
 
 //Player death hook
@@ -462,6 +438,7 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
     if (MainMenu != null) delete MainMenu;
     if (GameMenu != null) delete GameMenu;
     if (DrawMenu != null) delete DrawMenu;
+    if (SpecialDaysMenu != null) delete SpecialDaysMenu;
     
     //Turn off laser for warden
     RemoveLaserAction(client, 0);
@@ -485,7 +462,7 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
     
   }
   
-  if (isSpecialDay) {
+  if (specialDay) {
     if (specialDay == SPECIALDAY_VIRUSDAY) {
     
       if (!isInInfectedHideTime) {
@@ -557,14 +534,21 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
   return Plugin_Continue;
 }
 
-//Return time since new round started
-int GetTimeSinceRoundStart()
+//Player spawn hook
+public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
-  int curTime = GetTime();
-  return (curTime - newRoundTimeElapsed);
+  if (specialDay && specialDay == SPECIALDAY_ROUNDMODIFIER && roundModifier == ROUNDMODIFIER_FASTSPEED) {
+    int client = GetClientOfUserId(event.GetInt("userid"));
+    SetEntPropFloat(client, Prop_Data, "m_flLaggedMovementValue", GetConVarFloat(cvar_roundmodifier_fastspeed));
+    SetEntityGravity(client, GetConVarFloat(cvar_roundmodifier_fastspeed_gravity));
+  }
 }
 
-//Show Beam Menu
+/*********************************
+ *  Console Commands
+ *********************************/
+
+//Show WT Menu
 public Action Command_WT_Menu(int client, int args)
 {
   if (client == 0) {  // Prevent command usage from server input and via RCON
@@ -589,13 +573,14 @@ public Action Command_WT_Menu(int client, int args)
   //Create menu
   MainMenu = CreateMenu(MainMenuHandler);
   char mainMenuTitle[255];
-  Format(mainMenuTitle, sizeof(mainMenuTitle), "Jailbreak Warden Tools (%s)", VERSION);
+  Format(mainMenuTitle, sizeof(mainMenuTitle), "Warden Tools (%s)", VERSION);
   SetMenuTitle(MainMenu, mainMenuTitle);
   
   //Add menu items
   AddMenuItem(MainMenu, "Option_DrawTools", "Draw Tools");
 
-  if (!isSpecialDay)  
+  //Game tools only enabled on non-special days or on round modifier days
+  if (!specialDay || (specialDay && specialDay == SPECIALDAY_ROUNDMODIFIER))  
     AddMenuItem(MainMenu, "Option_GameTools", "Game Tools");
   else
     AddMenuItem(MainMenu, "Option_GameTools", "Game Tools", ITEMDRAW_DISABLED);
@@ -604,7 +589,7 @@ public Action Command_WT_Menu(int client, int args)
   char specialDayText[64];
   Format(specialDayText, sizeof(specialDayText), "Special Days (%d left)", GetConVarInt(cvar_maxspecialdays) - numSpecialDays);
   
-  if (isSpecialDay || (GetConVarInt(cvar_maxspecialdays) - numSpecialDays) == 0)
+  if (specialDay || (GetConVarInt(cvar_maxspecialdays) - numSpecialDays) == 0)
     AddMenuItem(MainMenu, "Option_SpecialDay", specialDayText, ITEMDRAW_DISABLED);
   else if (GetTimeSinceRoundStart() >= GetConVarInt(cvar_specialday_starttime))
     AddMenuItem(MainMenu, "Option_SpecialDay", specialDayText, ITEMDRAW_DISABLED);
@@ -622,6 +607,46 @@ public Action Command_WT_Menu(int client, int args)
   
   return Plugin_Handled;
 }
+
+//Perform Mic check
+public Action Command_MicCheck(int client, int args) {
+  if (micCheckConducted) {
+    CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Miccheck Already Conducted");
+    return Plugin_Handled;
+  }
+  else if (isInMicCheckTime) {
+    CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Miccheck Already Happening");
+    return Plugin_Handled;
+  }
+  
+  //Say who started a mic check
+  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "Miccheck Started All", client);
+  
+  for (int i = 1; i <= MaxClients; ++i) {
+    if (IsClientInGame(i) && IsPlayerAlive(i)) {
+      if (GetClientTeam(i) == CS_TEAM_CT) {
+        //Perform Mic Check
+        CPrintToChat(i, "%s%t", CHAT_TAG_PREFIX, "Miccheck Started CT", client, RoundToNearest(GetConVarFloat(cvar_miccheck_time)));
+        PrintHintText(i, "%t", "Miccheck Status Not Verified");
+        PushArrayCell(micSwapTargets, i);
+        CreateTimer(0.5, Timer_MicCheck, i);
+      }
+    }
+  }
+  
+  isInMicCheckTime = true;
+  micCheckConducted = true;
+  
+  //Create timer to stop mic check
+  CreateTimer(GetConVarFloat(cvar_miccheck_time), Timer_MicCheckFinish);
+
+  return Plugin_Handled;
+}
+
+
+/*********************************
+ *  Menus and Handlers
+ *********************************/
 
 //Handles main Menu
 public int MainMenuHandler(Menu menu, MenuAction action, int client, int param2)
@@ -672,17 +697,17 @@ public int MainMenuHandler(Menu menu, MenuAction action, int client, int param2)
     }
     else if (StrEqual(info, "Option_SpecialDay")) {
       //Create menu
-      Menu SpecialDaysMenu = CreateMenu(SpecialDaysMenuHandler);
+      SpecialDaysMenu = CreateMenu(SpecialDaysMenuHandler);
       SetMenuExitBackButton(SpecialDaysMenu, true);
       SetMenuTitle(SpecialDaysMenu, "Select a Special Day");
       
       //Add menu items
       AddMenuItem(SpecialDaysMenu, "Option_Freeday", "Freeday");
-      AddMenuItem(SpecialDaysMenu, "Option_LowGravFreeday", "Low Gravity Freeday");
+      AddMenuItem(SpecialDaysMenu, "Option_RoundModifiers", "Round Modifiers");
       AddMenuItem(SpecialDaysMenu, "Option_CustomDay", "Custom Special Day");
       AddMenuItem(SpecialDaysMenu, "Option_HNS", "Hide and Seek Day");
       AddMenuItem(SpecialDaysMenu, "Option_Warday", "Warday");
-      AddMenuItem(SpecialDaysMenu, "Option_VirusDay", "Croatoan Virus Outbreak Day");
+      AddMenuItem(SpecialDaysMenu, "Option_VirusDay", "Zombie Day");
       AddMenuItem(SpecialDaysMenu, "Option_FFADM", "FFA Deathmatch Day");
       AddMenuItem(SpecialDaysMenu, "Option_HungerGamesDay", "Hunger Games Day");
       
@@ -1072,20 +1097,27 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
     
     if (StrEqual(info, "Option_Freeday")) {
       //Freeday
-      specialDay = SPECIALDAY_FREEDAY;
+      setSpecialDay(SPECIALDAY_FREEDAY);
+      
       CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Freeday");
     }
-    else if (StrEqual(info, "Option_LowGravFreeday")) {
-      specialDay = SPECIALDAY_LOW_GRAVITY_FREEDAY;
+    else if (StrEqual(info, "Option_RoundModifiers")) {
+      //Round modifiers
+      //Create menu
+      Menu RoundModifierMenu = CreateMenu(RoundModifierMenuHandler);
+      SetMenuExitBackButton(RoundModifierMenu, true);
+      SetMenuTitle(RoundModifierMenu, "Select a Round Modifier");
       
-      CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Low Gravity Freeday");
-      ConVar cvar_grav = FindConVar("sv_gravity");
-      originalGravity = GetConVarInt(cvar_grav);
-      SetConVarInt(cvar_grav, 250);
+      //Add menu items
+      AddMenuItem(RoundModifierMenu, "Option_RoundModifiers_LowGrav", "Low Gravity");
+      AddMenuItem(RoundModifierMenu, "Option_RoundModifiers_FastSpeed", "Fast Speed");
+      AddMenuItem(RoundModifierMenu, "Option_RoundModifiers_WalkOnly", "Walking Only");
+      
+      DisplayMenu(RoundModifierMenu, client, MENU_TIME_FOREVER);
     }
     else if (StrEqual(info, "Option_HNS")) {
       //Hide and Seek
-      specialDay = SPECIALDAY_HNS;
+      setSpecialDay(SPECIALDAY_HNS);
       
       //Set players health
       for (int i = 1; i <= MaxClients ; ++i) {
@@ -1172,7 +1204,7 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
         return;
       }
       
-      specialDay = SPECIALDAY_VIRUSDAY;
+      setSpecialDay(SPECIALDAY_VIRUSDAY);
       
       //Remove radar
       for (int i = 1; i <= MaxClients; ++i) {
@@ -1199,10 +1231,10 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
       isInInfectedHideTime = true;
       
       //Teleport all players to warden beam
-      TeleportPlayersToWarden(client, GetConVarFloat(cvar_virusday_tptime), "Croatoan Virus Outbreak Day", Teleport_Start_All, TELEPORTTYPE_ALL);
+      TeleportPlayersToWarden(client, GetConVarFloat(cvar_virusday_tptime), "Zombie Day", Teleport_Start_All, TELEPORTTYPE_ALL);
     }
     else if (StrEqual(info, "Option_FFADM")) {
-      specialDay = SPECIALDAY_FFADM;
+      setSpecialDay(SPECIALDAY_FFADM);
       
       //Remove radar
       for (int i = 1; i <= MaxClients; ++i) {
@@ -1233,7 +1265,7 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
       TeleportPlayersToWarden(client, GetConVarFloat(cvar_ffadm_tptime), "FFA Deathmatch", Teleport_Start_All, TELEPORTTYPE_ALL);
     }
     else if (StrEqual(info, "Option_HungerGamesDay")) {
-      specialDay = SPECIALDAY_HUNGERGAMES;
+      setSpecialDay(SPECIALDAY_HUNGERGAMES);
       
       //Remove radar
       for (int i = 1; i <= MaxClients; ++i) {
@@ -1275,23 +1307,83 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
     
     else if (StrEqual(info, "Option_CustomDay")) {
       //Custom day
-      specialDay = SPECIALDAY_CUSTOM;
+      setSpecialDay(SPECIALDAY_CUSTOM);
+      
       CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Custom");
     }
-    
-    //Disable LR on special days
-    ConVar hostiesLR = FindConVar("sm_hosties_lr");
-    if (hostiesLR != null)
-      SetConVarInt(hostiesLR, 0);
-    
-    isSpecialDay = true;
-    ++numSpecialDays;
   }
   else if (action == MenuAction_Cancel)
   {
     if (param2 == MenuCancel_ExitBack) {
       //Goto parent menu
       DisplayMenuAtItem(MainMenu, client, 0, 0);
+    }
+  }
+}
+
+//Handle round modifier menu
+public int RoundModifierMenuHandler(Menu menu, MenuAction action, int client, int param2)
+{
+  if (action == MenuAction_Select)
+  {
+    //Ensure user is warden
+    bool isWarden = view_as<bool>(warden_iswarden(client));
+    
+    if (!isWarden) {
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Warden Only Command");
+      return;
+    }
+    
+    //Check time in which special day was used
+    if (GetTimeSinceRoundStart() >= GetConVarInt(cvar_specialday_starttime)) {
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Too Late", GetConVarInt(cvar_specialday_starttime));
+      return;
+    }
+    
+    char info[32];
+    GetMenuItem(menu, param2, info, sizeof(info));
+    if (StrEqual(info, "Option_RoundModifiers_LowGrav")) {
+      roundModifier = ROUNDMODIFIER_LOWGRAVITY;
+    
+      //Set Low Gravity
+      ConVar cvar_grav = FindConVar("sv_gravity");
+      orig_sv_gravity = GetConVarInt(cvar_grav);
+      SetConVarInt(cvar_grav, GetConVarInt(cvar_roundmodifier_lowgravity));
+      
+      CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Round Modifier Set", "Low Gravity");
+    }
+    else if (StrEqual(info, "Option_RoundModifiers_FastSpeed")) {
+      roundModifier = ROUNDMODIFIER_FASTSPEED;
+      
+      //Set fast speed
+      for (int i = 1; i < MaxClients; ++i) {
+        if (IsClientInGame(i) && IsPlayerAlive(i)) {
+          SetEntPropFloat(i, Prop_Data, "m_flLaggedMovementValue", GetConVarFloat(cvar_roundmodifier_fastspeed));
+          SetEntityGravity(i, GetConVarFloat(cvar_roundmodifier_fastspeed_gravity));
+        }
+      }
+      
+      CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Round Modifier Set", "Fast Speed");
+    }
+    else if (StrEqual(info, "Option_RoundModifiers_WalkOnly")) {
+      roundModifier = ROUNDMODIFIER_WALKINGONLY;
+      
+      //Set Max Speed
+      ConVar cvar_maxspeed = FindConVar("sv_maxspeed");
+      orig_sv_maxspeed = GetConVarInt(cvar_maxspeed);
+      SetConVarInt(cvar_maxspeed, GetConVarInt(cvar_roundmodifier_walkingonly_maxspeed));
+      
+      CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Round Modifier Set", "Walking Only");
+    }
+      
+    //Set special day
+    setSpecialDay(SPECIALDAY_ROUNDMODIFIER);
+  }
+  else if (action == MenuAction_Cancel)
+  {
+    if (param2 == MenuCancel_ExitBack) {
+      //Goto parent menu
+      DisplayMenuAtItem(SpecialDaysMenu, client, 0, 0);
     }
   }
 }
@@ -1384,6 +1476,77 @@ public int SetColourMenuHandler(Menu menu, MenuAction action, int client, int pa
     }
   }
 }
+
+//Handle shark menu
+public int SharkMenuHandler(Menu menu, MenuAction action, int client, int param2)
+{
+  if (action == MenuAction_Select)
+  {
+    //Ensure user is warden
+    bool isWarden = view_as<bool>(warden_iswarden(client));
+    
+    if (!isWarden) {
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Warden Only Command");
+      return;
+    }
+    
+    char info[32];
+    GetMenuItem(menu, param2, info, sizeof(info));
+    int target = GetClientOfUserId(StringToInt(info));
+    
+    isShark[target] = true;
+    
+    //Save current health
+    int targetCurrentHP = GetEntProp(target, Prop_Send, "m_iHealth");
+    int targetCurrentArmour = GetEntProp(target, Prop_Send, "m_ArmorValue");
+    
+    //Set sharks HP to high ammount
+    SetEntProp(target, Prop_Data, "m_iHealth", GetConVarInt(cvar_shark_health));
+    SetEntProp(target, Prop_Data, "m_ArmorValue", 0);
+    
+    //Blind the shark
+    Handle fadePack;
+    CreateDataTimer(0.0, FadeClient, fadePack);
+    WritePackCell(fadePack, target);
+    WritePackCell(fadePack, 0);
+    WritePackCell(fadePack, 0);
+    WritePackCell(fadePack, 0);
+    WritePackCell(fadePack, 255);
+
+    //Set timer to play shark sound
+    CreateTimer(5.0, Timer_SharkSound, target);
+    
+    //Set end timer to remove shark
+    CreateTimer(GetConVarFloat(cvar_shark_duration), Timer_RemoveShark, target);
+    
+    //Set end timer for hp
+    Handle pack;
+    CreateDataTimer(GetConVarFloat(cvar_shark_duration) + 5.0, Timer_RemoveShark_HP, pack);
+    WritePackCell(pack, target);
+    WritePackCell(pack, targetCurrentHP);
+    WritePackCell(pack, targetCurrentArmour);
+
+    //Set warning timer
+    CreateTimer(GetConVarFloat(cvar_shark_duration) - GetConVarFloat(cvar_shark_timeleft_warning), Timer_WarningShark, target);
+    
+    //Print Message
+    CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "Shark New", target, RoundToNearest(GetConVarFloat(cvar_shark_duration)));
+    
+    //Go back to game menu again
+    DisplayMenuAtItem(GameMenu, client, 0, 0);
+  }
+  else if (action == MenuAction_Cancel)
+  {
+    if (param2 == MenuCancel_ExitBack) {
+      //Goto parent menu
+      DisplayMenuAtItem(GameMenu, client, 0, 0);
+    }
+  }
+}
+
+/*********************************
+ * Timers
+ ********************************/
 
 //Quick place beams using bind
 public Action PlaceBeamAction(int client, int args)
@@ -1573,73 +1736,6 @@ public Action Teleport_Start_All(Handle timer, Handle pack)
   teleportHandle = null;
 }
 
-//Handle shark menu
-public int SharkMenuHandler(Menu menu, MenuAction action, int client, int param2)
-{
-  if (action == MenuAction_Select)
-  {
-    //Ensure user is warden
-    bool isWarden = view_as<bool>(warden_iswarden(client));
-    
-    if (!isWarden) {
-      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Warden Only Command");
-      return;
-    }
-    
-    char info[32];
-    GetMenuItem(menu, param2, info, sizeof(info));
-    int target = GetClientOfUserId(StringToInt(info));
-    
-    isShark[target] = true;
-    
-    //Save current health
-    int targetCurrentHP = GetEntProp(target, Prop_Send, "m_iHealth");
-    int targetCurrentArmour = GetEntProp(target, Prop_Send, "m_ArmorValue");
-    
-    //Set sharks HP to high ammount
-    SetEntProp(target, Prop_Data, "m_iHealth", GetConVarInt(cvar_shark_health));
-    SetEntProp(target, Prop_Data, "m_ArmorValue", 0);
-    
-    //Blind the shark
-    Handle fadePack;
-    CreateDataTimer(0.0, FadeClient, fadePack);
-    WritePackCell(fadePack, target);
-    WritePackCell(fadePack, 0);
-    WritePackCell(fadePack, 0);
-    WritePackCell(fadePack, 0);
-    WritePackCell(fadePack, 255);
-
-    //Set timer to play shark sound
-    CreateTimer(5.0, Timer_SharkSound, target);
-    
-    //Set end timer to remove shark
-    CreateTimer(GetConVarFloat(cvar_shark_duration), Timer_RemoveShark, target);
-    
-    //Set end timer for hp
-    Handle pack;
-    CreateDataTimer(GetConVarFloat(cvar_shark_duration) + 5.0, Timer_RemoveShark_HP, pack);
-    WritePackCell(pack, target);
-    WritePackCell(pack, targetCurrentHP);
-    WritePackCell(pack, targetCurrentArmour);
-
-    //Set warning timer
-    CreateTimer(GetConVarFloat(cvar_shark_duration) - GetConVarFloat(cvar_shark_timeleft_warning), Timer_WarningShark, target);
-    
-    //Print Message
-    CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "Shark New", target, RoundToNearest(GetConVarFloat(cvar_shark_duration)));
-    
-    //Go back to game menu again
-    DisplayMenuAtItem(GameMenu, client, 0, 0);
-  }
-  else if (action == MenuAction_Cancel)
-  {
-    if (param2 == MenuCancel_ExitBack) {
-      //Goto parent menu
-      DisplayMenuAtItem(GameMenu, client, 0, 0);
-    }
-  }
-}
-
 public Action Timer_RemoveShark(Handle timer, int target)
 {
   if (!isShark[target])
@@ -1656,6 +1752,7 @@ public Action Timer_RemoveShark(Handle timer, int target)
   
   CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "Shark Removed", target);
 }
+
 public Action Timer_RemoveShark_HP(Handle timer, Handle pack)
 {
   ResetPack(pack);
@@ -1691,6 +1788,545 @@ public Action Timer_WarningShark(Handle timer, int target)
     CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "Shark Warning", target, RoundToNearest(GetConVarFloat(cvar_shark_timeleft_warning)));
 }
 
+//Laser code
+public Action Timer_Check_Laser(Handle timer)
+{
+  float pos[3];
+  int colour = GetRandomInt(0,6);
+  
+  for (int i = 1; i <= MaxClients; ++i) {
+    if (IsClientInGame(i) && LaserEnabled[i]) {
+      TraceEye(i, pos);
+      if (GetVectorDistance(pos, LastLaser[i]) > 6.0) {
+        LaserP(LastLaser[i], pos, g_DefaultColors_c[colour]);
+        LastLaser[i][0] = pos[0];
+        LastLaser[i][1] = pos[1];
+        LastLaser[i][2] = pos[2];
+      }
+    } 
+  }
+}
+
+//Report Freezebomb results
+public Action Timer_ReportFreezebombResults(Handle timer)
+{
+  //Check to see if timer should be stopped
+  if (!shouldFreezeT) {
+    return Plugin_Handled;
+  }
+  
+  //Report results
+  int highestClient = -1;
+  int lowestClient = -1;
+  float highestCord = -999999.0;
+  float lowestCord = 999999.0;
+      
+  for (int i = 1; i <= MaxClients; ++i) {
+    if (IsClientInGame(i) && IsPlayerAlive(i)) {
+      if (GetClientTeam(i) == CS_TEAM_T) {
+        float player_vec[3];
+        GetClientAbsOrigin(i, player_vec);
+        
+        if (player_vec[2] > highestCord) {
+          highestCord = player_vec[2];
+          highestClient = i;
+        }
+        
+        if (player_vec[2] < lowestCord) {
+          lowestCord = player_vec[2];
+          lowestClient = i;
+        }
+        
+      }
+    }
+  }
+
+  if (highestClient != -1) 
+    CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "Highest Freezebomb", highestClient);
+  
+  if (lowestClient != -1)
+    CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "Lowest Freezebomb", lowestClient);
+  
+  //Disable freeze bool
+  shouldFreezeT = false;
+  
+  return Plugin_Handled;
+}
+
+//Finish MicCheck
+public Action Timer_MicCheckFinish(Handle timer)
+{
+  isInMicCheckTime = false;
+  int numGuardsMoved = 0;
+  
+  for (int i = 0; i < GetArraySize(micSwapTargets); ++i) {
+    int client = GetArrayCell(micSwapTargets, i);
+    if (IsClientInGame(client)) {
+      if (GetClientTeam(client) == CS_TEAM_CT) {
+        //Twap clients team
+        ChangeClientTeam(client, CS_TEAM_T);
+        CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Miccheck You Were Swapped");
+        ++numGuardsMoved;
+      }
+    }
+  }
+  
+  //Miccheck finished
+  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "Miccheck Finished", numGuardsMoved);
+  
+  ClearArray(micSwapTargets);
+}
+
+//Check gaurd mic
+public Action Timer_MicCheck(Handle timer, int client)
+{
+  if (!isInMicCheckTime)
+    return Plugin_Handled;
+  
+  if (IsClientInGame(client) && IsPlayerAlive(client)) {
+    if (GetClientTeam(client) == CS_TEAM_CT) {
+      if (IsClientSpeaking(client)) {
+        PrintHintText(client, "%t", "Miccheck Status Verified");
+        RemoveFromArray(micSwapTargets, FindValueInArray(micSwapTargets, client)); //remove this verified client from the array
+      } else {
+        PrintHintText(client, "%t", "Miccheck Status Not Verified");
+        CreateTimer(0.5, Timer_MicCheck, client);
+      }
+    }
+  }
+
+  return Plugin_Handled;
+}
+
+//Called when prisoners win HNS day
+public Action Timer_HNSPrisonersWin(Handle timer)
+{
+  for (int i = 1; i <= MaxClients; ++i) {
+    if (IsClientInGame(i) && IsPlayerAlive(i)) {
+      if (GetClientTeam(i) == CS_TEAM_CT) {
+        ForcePlayerSuicide(i);
+      }
+    }
+  }
+  
+  //Print victory message
+  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - HNS Prisoners Win");
+  
+  //Reset timer handle
+  hnsPrisonersWinHandle = null;
+}
+
+//Called when damage protection is to be turned off
+public Action SpecialDay_DamageProtection_End(Handle timer)
+{
+  specialDayDamageProtection = false;
+  damageProtectionHandle = null;
+}
+
+//Timer called once Virus day starts
+public Action VirusDay_StartInfection(Handle timer)
+{
+  //Pick two people to infect
+  int entryCount = 0;
+  ArrayList eligblePlayers = CreateArray(MaxClients+1);
+  
+  for (int i = 1; i <= MaxClients; ++i) {
+    if (IsClientInGame(i) && IsPlayerAlive(i)) {
+      PushArrayCell(eligblePlayers, i);
+      ++entryCount;
+    }
+  }
+  int totalToGive = 2;
+  
+  //Check to see if at least 'totalToGive' players are alive at this point and if not, abort
+  if (entryCount < totalToGive) {
+    CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Virus Day Aborted");
+    infectionStartTimer = null; //Needed so invalid handle doesnt occur later in ResetVars()
+    return Plugin_Handled;
+  }
+  
+  int client1 = -1;
+  int client2 = -1;
+  
+  for (int c = 0; c < totalToGive; ++c) {
+    int rand = GetRandomInt(0, entryCount - 1);
+    int client = GetArrayCell(eligblePlayers, rand);
+    removeClientFromArray(eligblePlayers, client);
+    entryCount = GetArraySize(eligblePlayers)
+    
+    if (client1 == -1)
+      client1 = client;
+    else if (client2 == -1)
+      client2 = client;
+    
+    //Infect said client
+    VirusDay_InfectClient(client, false);
+  }
+  
+  isInInfectedHideTime = false;
+  
+  //Enable hud for all
+  CreateTimer(0.5, Timer_VirusDayShowHud);
+  
+  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Virus Day First Infected", client1, client2);
+  
+  infectionStartTimer = null;
+  
+  return Plugin_Handled;
+}
+
+//Called when non infected win virus day
+public Action Timer_VirusDayInfectedWin(Handle timer)
+{
+  for (int i = 1; i <= MaxClients; ++i) {
+    if (IsClientInGame(i) && IsPlayerAlive(i)) {
+      if (isInfected[i]) {
+        //Burn the infected
+        ServerCommand("sm_burn #%d 10000", GetClientUserId(i));
+      }
+    }
+  }
+  
+  isPastCureFoundTime = true;
+  
+  //Disable medic
+  Disable_Medics();
+  
+  //Start draining all infected
+  drainTimer = CreateTimer(GetConVarFloat(cvar_virusday_drain_interval), Timer_DrainHP, _, TIMER_REPEAT);
+  
+  //Print victory message
+  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Virus Day Non Infected Win");
+  
+  //Reset timer handle
+  virusdayNonInfectedWinHandle = null;
+}
+
+public Action Timer_VirusDayShowHud(Handle timer)
+{
+  if (!specialDay || specialDay != SPECIALDAY_VIRUSDAY)
+    return Plugin_Handled;
+  
+  int numDead = 0;
+  int numInfected = 0;
+  int numNotInfected = 0;
+  
+  for (int i = 1; i <= MaxClients; ++i) {
+    if (IsClientInGame(i)) {
+      if (!IsPlayerAlive(i))
+        ++numDead;
+      else {
+        if (isInfected[i])
+          ++numInfected;
+        else
+          ++numNotInfected;
+      }
+    }
+  }
+  
+  for (int i = 1; i <= MaxClients; ++i) {
+    if (IsClientInGame(i)) {
+      char status[32];
+      char statusColour[10];
+      
+      if (!IsPlayerAlive(i)) {
+        Format(status, sizeof(status), "%s", "Dead");
+        Format(statusColour, sizeof(statusColour), "%s", "#CCCCCC");
+      }
+      else {
+        if (isInfected[i]) {
+          Format(status, sizeof(status), "%s", "Infected");
+          Format(statusColour, sizeof(statusColour), "%s", "#FF0033");
+        }
+        else {
+          Format(status, sizeof(status), "%s", "Not Infected");
+          Format(statusColour, sizeof(statusColour), "%s", "#336600");
+        }
+      }
+      
+      //Hint HUD
+      PrintHintText(i, "%t", "SpecialDay - Virus Day HUD", statusColour, status, numInfected, numNotInfected);
+    }
+  }
+  
+  CreateTimer(0.5, Timer_VirusDayShowHud);
+
+  return Plugin_Handled;
+}
+
+public Action Timer_DrainHP(Handle timer)
+{
+  //For each client
+  for (new i = 1; i <= MaxClients; ++i)
+  {
+    //Check if player is truly alive
+    if (IsClientInGame(i) && IsPlayerAlive(i) && isInfected[i]) {
+      int currentHP = GetEntProp(i, Prop_Send, "m_iHealth");
+      int drainAmount = GetRandomInt(GetConVarInt(cvar_virusday_min_drain), GetConVarInt(cvar_virusday_max_drain));
+      
+      //If player should die
+      if (drainAmount > currentHP) {
+        //Play death sound
+        char infectDeathSounds[2][] = {INFECT_DEATH_SOUND_1, INFECT_DEATH_SOUND_2};
+        int randNum = GetRandomInt(0, sizeof(infectDeathSounds) - 1);
+
+        //Play explosion sounds
+        EmitSoundToAllAny(infectDeathSounds[randNum], i, SNDCHAN_USER_BASE, SNDLEVEL_RAIDSIREN); 
+        
+        //Kill the player
+        SetEntProp(i, Prop_Send, "m_ArmorValue", 0, 1);  //Set Armor to 0
+        DealDamage(i, currentHP + 1, i, DMG_GENERIC, "");
+      }
+      //Othwerwise drain their HP
+      else {
+        SetEntityHealth(i, currentHP - drainAmount);
+      }
+    }
+  }
+}
+
+//Called when FFADM round ends
+public Action Timer_FFADMRoundEnds(Handle timer)
+{
+  //Set FFA to stalement so no winner is picked based on deaths
+  isFFARoundStalemate = true;
+
+  for (int i = 1; i <= MaxClients; ++i) {
+    if (IsClientInGame(i) && IsPlayerAlive(i)) {
+      ForcePlayerSuicide(i);
+    }
+  }
+  
+  //Print round end message
+  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - FFADM Round Over");
+  
+  //Reset timer handle
+  freeforallRoundEndHandle = null;
+}
+
+//Timer called once FFADM day starts
+public Action FFADM_Start(Handle timer)
+{
+  //Give players full armour
+  for (int i = 1; i < MaxClients; ++i) {
+    if (IsClientInGame(i) && IsPlayerAlive(i)) {
+      GivePlayerItem( i, "item_assaultsuit");
+      SetEntProp(i, Prop_Data, "m_ArmorValue", 100, 1);
+    }
+  }
+
+  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - FFADM Started");
+  
+  freeforallStartTimer = null;
+  
+  return Plugin_Handled;
+}
+
+//Called when hunger games round ends
+public Action Timer_HungerGamesRoundEnds(Handle timer)
+{
+  //Set FFA to stalement so no winner is picked based on deaths
+  isFFARoundStalemate = true;
+
+  for (int i = 1; i <= MaxClients; ++i) {
+    if (IsClientInGame(i) && IsPlayerAlive(i)) {
+      ForcePlayerSuicide(i);
+    }
+  }
+  
+  //Print round end message
+  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Hunger Games Round Over");
+  
+  //Reset timer handle
+  freeforallRoundEndHandle = null;
+}
+
+//Timer called once hunger games start
+public Action HungerGames_Start(Handle timer)
+{
+  //For each player, randomly give them: health, primary weapon, secondary weapon, and grenades
+  char primaryWeapons[23][] = {"weapon_ak47","weapon_aug","weapon_awp","weapon_bizon","weapon_famas","weapon_g3sg1","weapon_galilar","weapon_m249","weapon_m4a1","weapon_m4a1_silencer","weapon_mac10","weapon_mag7","weapon_mp7","weapon_mp9","weapon_negev","weapon_nova","weapon_p90","weapon_sawedoff","weapon_scar20","weapon_sg556","weapon_ssg08","weapon_ump45","weapon_xm1014"};
+  char secondaryWeapons[10][] = {"weapon_cz75a","weapon_deagle","weapon_fiveseven","weapon_elite","weapon_glock","weapon_hkp2000","weapon_p250","weapon_revolver","weapon_usp_silencer","weapon_tec9"};
+  char grenades[6][] = {"weapon_decoy","weapon_flashbang","weapon_hegrenade","weapon_incgrenade","weapon_molotov","weapon_smokegrenade"};
+  
+  for (int i = 1; i < MaxClients; ++i) {
+    if (IsClientInGame(i) && IsPlayerAlive(i)) {
+      //Strip all current weapons from client
+      StripWeapons(i);
+      
+      //Give them knife
+      GivePlayerItem(i, "weapon_knife");
+      
+      //Give player random health
+      float randomHealth = GetRandomFloat(GetConVarFloat(cvar_hungergames_min_random_health), GetConVarFloat(cvar_hungergames_max_random_health));
+      SetEntProp(i, Prop_Data, "m_iHealth", RoundToFloor(randomHealth));
+      
+      //Give player full armour
+      GivePlayerItem( i, "item_assaultsuit");
+      SetEntProp(i, Prop_Data, "m_ArmorValue", 100, 1);
+      
+      //Give player random primary
+      int randNum = GetRandomInt(0, sizeof(primaryWeapons) - 1);
+      GivePlayerItem(i, primaryWeapons[randNum]);
+        
+      //Give player random secondary
+      randNum = GetRandomInt(0, sizeof(secondaryWeapons) - 1);
+      GivePlayerItem(i, secondaryWeapons[randNum]);
+      
+      //Give player random grenades
+      randNum = GetRandomInt(0, sizeof(grenades) - 1);
+      GivePlayerItem(i, grenades[randNum]);
+      
+    }
+  }
+
+  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Hunger Games Started");
+  
+  freeforallStartTimer = null;
+  
+  return Plugin_Handled;
+}
+
+
+/*********************************
+ *  Helper Functions
+ *********************************/
+
+//Reset all variables of importance
+void Reset_Vars()
+{
+  //Close menu handler when round starts/ends
+  if (MainMenu != null) delete MainMenu;
+  if (GameMenu != null) delete GameMenu;
+  if (DrawMenu != null) delete DrawMenu;
+  if (SpecialDaysMenu != null) delete SpecialDaysMenu;
+  if (hnsPrisonersWinHandle != null) delete hnsPrisonersWinHandle;
+  if (teleportHandle != null) delete teleportHandle;
+  if (damageProtectionHandle != null) delete damageProtectionHandle;
+  if (virusdayNonInfectedWinHandle != null) delete virusdayNonInfectedWinHandle;
+  if (drainTimer != null) delete drainTimer;
+  if (infectionStartTimer != null) delete infectionStartTimer;
+  if (freeforallRoundEndHandle != null) delete freeforallRoundEndHandle; 
+  if (freeforallStartTimer != null) delete freeforallStartTimer;
+  
+  //Reset settings
+  currentBeamsUsed = 0;
+  curDuration = 20.0;
+  shouldBlindT = false;
+  shouldFreezeT = false;
+  freezeTimer = null; 
+  currentColour = redColour;
+  currentColourCode = COLOUR_RED;
+  specialDay = SPECIALDAY_NONE;
+  roundModifier = ROUNDMODIFIER_NONE;
+  micCheckConducted = false;
+  isInMicCheckTime = false;
+  isInHighlightTeamDM = false;
+  specialDayDamageProtection = false;
+  isInInfectedHideTime = false;
+  isPastCureFoundTime = false;
+  isFFARoundStalemate = false
+  
+  SetConVarInt(FindConVar("sv_gravity"), orig_sv_gravity);
+  SetConVarInt(FindConVar("sv_maxspeed"), orig_sv_maxspeed);
+  
+  newRoundTimeElapsed = GetTime();
+  
+  ClearArray(micSwapTargets);
+ 
+  for (int i = 1; i <= MaxClients; ++i) {
+    if (!IsClientInGame(i))
+      continue;
+      
+    //Remove enabled lasers for all
+    RemoveLaserAction(i, 0);
+    
+    //Unblind all
+    if (isBlind[i]) {
+      Handle fadePack;
+      CreateDataTimer(0.0, UnfadeClient, fadePack);
+      WritePackCell(fadePack, i);
+      WritePackCell(fadePack, 0);
+      WritePackCell(fadePack, 0);
+      WritePackCell(fadePack, 0);
+      WritePackCell(fadePack, 0);
+      
+      isBlind[i] = false;
+    }
+    
+    //Unhighlight
+    if (isHighlighted[i] && IsClientInGame(i) && IsPlayerAlive(i)) {
+      SetEntityRenderColor(i, 255, 255, 255, 255);
+    }
+    
+    isHighlighted[i] = false;
+    highlightedColour[i] = COLOUR_DEFAULT;
+    
+    //Reset shark
+    isShark[i] = false;
+    
+    //Reset infected related things
+    if (isInfected[i]) {
+      //Icon
+      SafeDelete(infectedIcon[i]);
+      infectedIcon[i] = -1;
+    }
+    
+    //Reset speed (for infected[i] as well as for round modifiers)
+    SetEntPropFloat(i, Prop_Data, "m_flLaggedMovementValue", 1.0);
+    
+    //Reset gravity
+    SetEntityGravity(i, 1.0);
+    
+    //Reset overlays
+    ShowOverlayToClient(i, "");
+    
+    //Reset infected
+    isInfected[i] = false;
+  }
+  
+  //Disable Friendly Fire
+  SetConVarBool(FindConVar("mp_friendlyfire"), false);
+  SetConVarBool(FindConVar("mp_teammates_are_enemies"), false);
+  
+  //Disable priority speaker for new warden
+  ConVar priorityToggle = FindConVar("sm_wardentalk2_enabled");
+  
+  if (priorityToggle != null) {
+    SetConVarBool(priorityToggle, false);
+  }
+  
+  //Enable LR if it is disabled
+  ConVar hostiesLR = FindConVar("sm_hosties_lr");
+  if (hostiesLR != null)
+    SetConVarInt(hostiesLR, 1);
+}
+
+//Return time since new round started
+int GetTimeSinceRoundStart()
+{
+  int curTime = GetTime();
+  return (curTime - newRoundTimeElapsed);
+}
+
+//Set a special day
+void setSpecialDay(int specialDayType = SPECIALDAY_NONE)
+{
+  specialDay = specialDayType;
+  
+  if (specialDay == SPECIALDAY_NONE)
+    return;
+  
+  if (specialDay != SPECIALDAY_ROUNDMODIFIER) {
+    //Disable LR on special days unless its a round modifier
+    ConVar hostiesLR = FindConVar("sm_hosties_lr");
+    if (hostiesLR != null)
+      SetConVarInt(hostiesLR, 0);  
+  }
+  
+  ++numSpecialDays;
+}
+
 stock int GetAimOrigin(int client, float hOrigin[3], int type) 
 {
     float vAngles[3], fOrigin[3];
@@ -1723,24 +2359,6 @@ public bool TraceEntityFilterOnlyPlayer(int entity, int contentsMask, int data)
   return data != entity;
 }
 
-//Laser code
-public Action Timer_Check_Laser(Handle timer)
-{
-  float pos[3];
-  int colour = GetRandomInt(0,6);
-  
-  for (int i = 1; i <= MaxClients; ++i) {
-    if (IsClientInGame(i) && LaserEnabled[i]) {
-      TraceEye(i, pos);
-      if (GetVectorDistance(pos, LastLaser[i]) > 6.0) {
-        LaserP(LastLaser[i], pos, g_DefaultColors_c[colour]);
-        LastLaser[i][0] = pos[0];
-        LastLaser[i][1] = pos[1];
-        LastLaser[i][2] = pos[2];
-      }
-    } 
-  }
-}
 public Action PlaceLaserAction(int client, int args) {
   //Ensure user is warden
   bool isWarden = view_as<bool>(warden_iswarden(client));
@@ -1869,190 +2487,9 @@ public Action UnfadeClient(Handle timer, Handle pack)
   return Plugin_Handled;
 }
 
-//Report Freezebomb results
-public Action Timer_ReportFreezebombResults(Handle timer)
-{
-  //Check to see if timer should be stopped
-  if (!shouldFreezeT) {
-    return Plugin_Handled;
-  }
-  
-  //Report results
-  int highestClient = -1;
-  int lowestClient = -1;
-  float highestCord = -999999.0;
-  float lowestCord = 999999.0;
-      
-  for (int i = 1; i <= MaxClients; ++i) {
-    if (IsClientInGame(i) && IsPlayerAlive(i)) {
-      if (GetClientTeam(i) == CS_TEAM_T) {
-        float player_vec[3];
-        GetClientAbsOrigin(i, player_vec);
-        
-        if (player_vec[2] > highestCord) {
-          highestCord = player_vec[2];
-          highestClient = i;
-        }
-        
-        if (player_vec[2] < lowestCord) {
-          lowestCord = player_vec[2];
-          lowestClient = i;
-        }
-        
-      }
-    }
-  }
-
-  if (highestClient != -1) 
-    CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "Highest Freezebomb", highestClient);
-  
-  if (lowestClient != -1)
-    CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "Lowest Freezebomb", lowestClient);
-  
-  //Disable freeze bool
-  shouldFreezeT = false;
-  
-  return Plugin_Handled;
-}
-
-//Finish MicCheck
-public Action Timer_MicCheckFinish(Handle timer)
-{
-  isInMicCheckTime = false;
-  int numGuardsMoved = 0;
-  
-  for (int i = 0; i < GetArraySize(micSwapTargets); ++i) {
-    int client = GetArrayCell(micSwapTargets, i);
-    if (IsClientInGame(client)) {
-      if (GetClientTeam(client) == CS_TEAM_CT) {
-        //Twap clients team
-        ChangeClientTeam(client, CS_TEAM_T);
-        CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Miccheck You Were Swapped");
-        ++numGuardsMoved;
-      }
-    }
-  }
-  
-  //Miccheck finished
-  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "Miccheck Finished", numGuardsMoved);
-  
-  ClearArray(micSwapTargets);
-}
-
-//Check gaurd mic
-public Action Timer_MicCheck(Handle timer, int client)
-{
-  if (!isInMicCheckTime)
-    return Plugin_Handled;
-  
-  if (IsClientInGame(client) && IsPlayerAlive(client)) {
-    if (GetClientTeam(client) == CS_TEAM_CT) {
-      if (IsClientSpeaking(client)) {
-        PrintHintText(client, "%t", "Miccheck Status Verified");
-        RemoveFromArray(micSwapTargets, FindValueInArray(micSwapTargets, client)); //remove this verified client from the array
-      } else {
-        PrintHintText(client, "%t", "Miccheck Status Not Verified");
-        CreateTimer(0.5, Timer_MicCheck, client);
-      }
-    }
-  }
-
-  return Plugin_Handled;
-}
-
-//Perform Mic check
-public Action Command_MicCheck(int client, int args) {
-  if (micCheckConducted) {
-    CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Miccheck Already Conducted");
-    return Plugin_Handled;
-  }
-  else if (isInMicCheckTime) {
-    CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Miccheck Already Happening");
-    return Plugin_Handled;
-  }
-  
-  //Say who started a mic check
-  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "Miccheck Started All", client);
-  
-  for (int i = 1; i <= MaxClients; ++i) {
-    if (IsClientInGame(i) && IsPlayerAlive(i)) {
-      if (GetClientTeam(i) == CS_TEAM_CT) {
-        //Perform Mic Check
-        CPrintToChat(i, "%s%t", CHAT_TAG_PREFIX, "Miccheck Started CT", client, RoundToNearest(GetConVarFloat(cvar_miccheck_time)));
-        PrintHintText(i, "%t", "Miccheck Status Not Verified");
-        PushArrayCell(micSwapTargets, i);
-        CreateTimer(0.5, Timer_MicCheck, i);
-      }
-    }
-  }
-  
-  isInMicCheckTime = true;
-  micCheckConducted = true;
-  
-  //Create timer to stop mic check
-  CreateTimer(GetConVarFloat(cvar_miccheck_time), Timer_MicCheckFinish);
-
-  return Plugin_Handled;
-}
-
-//Called when a player takes damage
-public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3])
-{
-  //Ignore invalid entities
-  if (!(victim > 0 && victim <= MaxClients) || !(attacker > 0 && attacker <= MaxClients)) {
-    return Plugin_Continue;
-  }
-  
-  if (isInHighlightTeamDM) {
-    
-    //Check for CT's trying to kill each other
-    if (GetClientTeam(victim) == CS_TEAM_CT && GetClientTeam(attacker) == CS_TEAM_CT) {
-      return Plugin_Handled;
-    }
-    
-    //Check for T's trying to kill team mates
-    if (GetClientTeam(victim) == CS_TEAM_T && GetClientTeam(attacker) == CS_TEAM_T) {
-      if (isHighlighted[victim] && isHighlighted[attacker]) {
-        if (highlightedColour[victim] == highlightedColour[attacker]) {
-          return Plugin_Handled;
-        }
-      }
-      
-      //Check for T's killing non highlighted T's
-      if (!isHighlighted[attacker]) {
-        return Plugin_Handled;
-      }
-      
-      if (isHighlighted[attacker] && !isHighlighted[victim]) {
-        return Plugin_Handled;
-      }
-    }
-  }
-  
-  //If damage should be blocked for another reason
-  if (isSpecialDay) {
-    if (specialDay == SPECIALDAY_VIRUSDAY) {
-      if (isInfected[attacker] && !isInfected[victim]) {
-        VirusDay_InfectClient(victim, true);
-      }
-      //Non infected can harm the infected
-      else if (!isInfected[attacker] && isInfected[victim]) {
-        return Plugin_Continue;
-      }
-      
-      return Plugin_Handled;
-    }
-    else if (specialDayDamageProtection) {
-      return Plugin_Handled;
-    }
-  }
-  
-  return Plugin_Continue;
-}
-
 public Action BlockPickup(int client, int weapon)
 {
-  if (isSpecialDay) {
+  if (specialDay) {
     if (specialDay == SPECIALDAY_VIRUSDAY) {
       char weaponClass[64];
       GetEntityClassname(weapon, weaponClass, sizeof(weaponClass));
@@ -2114,171 +2551,6 @@ int getTeamDMNumTeamsAlive()
   return GetArraySize(teamsArray);
 }
 
-//Called when prisoners win HNS day
-public Action Timer_HNSPrisonersWin(Handle timer)
-{
-  for (int i = 1; i <= MaxClients; ++i) {
-    if (IsClientInGame(i) && IsPlayerAlive(i)) {
-      if (GetClientTeam(i) == CS_TEAM_CT) {
-        ForcePlayerSuicide(i);
-      }
-    }
-  }
-  
-  //Print victory message
-  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - HNS Prisoners Win");
-  
-  //Reset timer handle
-  hnsPrisonersWinHandle = null;
-}
-
-//Called when damage protection is to be turned off
-public Action SpecialDay_DamageProtection_End(Handle timer)
-{
-  specialDayDamageProtection = false;
-  damageProtectionHandle = null;
-}
-
-//Timer called once Virus day starts
-public Action VirusDay_StartInfection(Handle timer)
-{
-  //Pick two people to infect
-  int entryCount = 0;
-  ArrayList eligblePlayers = CreateArray(MaxClients+1);
-  
-  for (int i = 1; i <= MaxClients; ++i) {
-    if (IsClientInGame(i) && IsPlayerAlive(i)) {
-      PushArrayCell(eligblePlayers, i);
-      ++entryCount;
-    }
-  }
-  int totalToGive = 2;
-  
-  //Check to see if at least 'totalToGive' players are alive at this point and if not, abort
-  if (entryCount < totalToGive) {
-    CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Virus Day Aborted");
-    infectionStartTimer = null; //Needed so invalid handle doesnt occur later in ResetVars()
-    return Plugin_Handled;
-  }
-  
-  int client1 = -1;
-  int client2 = -1;
-  
-  for (int c = 0; c < totalToGive; ++c) {
-    int rand = GetRandomInt(0, entryCount - 1);
-    int client = GetArrayCell(eligblePlayers, rand);
-    removeClientFromArray(eligblePlayers, client);
-    entryCount = GetArraySize(eligblePlayers)
-    
-    if (client1 == -1)
-      client1 = client;
-    else if (client2 == -1)
-      client2 = client;
-    
-    //Infect said client
-    VirusDay_InfectClient(client, false);
-  }
-  
-  isInInfectedHideTime = false;
-  
-  //Enable hud for all
-  CreateTimer(0.5, Timer_VirusDayShowHud);
-  
-  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Virus Day First Infected", client1, client2);
-  
-  infectionStartTimer = null;
-  
-  return Plugin_Handled;
-}
-
-void VirusDay_InfectClient(int client, bool printMessage)
-{
-  isInfected[client] = true;
-  
-  //Set up tint
-  Handle fadePack;
-  CreateDataTimer(0.0, FadeClient, fadePack);
-  WritePackCell(fadePack, client);
-  WritePackCell(fadePack, redColour[0]);
-  WritePackCell(fadePack, redColour[1]);
-  WritePackCell(fadePack, redColour[2]);
-  WritePackCell(fadePack, 15);
-  
-  //Highlight infected red
-  SetEntityRenderColor(client, redColour[0], redColour[1], redColour[2], 255);
-  
-  //Play sound
-  char infectSounds[3][] = {INFECT_SOUND_1, INFECT_SOUND_2, INFECT_SOUND_3};
-  int randNum = GetRandomInt(0, sizeof(infectSounds) - 1);
-
-  //Play explosion sounds
-  EmitSoundToAllAny(infectSounds[randNum], client, SNDCHAN_USER_BASE, SNDLEVEL_RAIDSIREN); 
-  
-  //Strip all weapons
-  StripWeapons(client);
-  
-  //Give them knife
-  GivePlayerItem(client, "weapon_knife");
-  
-  //Overlay infected on them
-  Create_Model(client);
-  
-  //Set blood overlay
-  ShowOverlayToClient(client, "overlays/invex/infectedblood.vmt");
-  
-  //Set health
-  SetEntProp(client, Prop_Data, "m_iHealth", GetConVarInt(cvar_virusday_infectedhealth));
-  
-  //Give speed boost
-  SetEntPropFloat(client, Prop_Data, "m_flLaggedMovementValue", GetConVarFloat(cvar_virusday_infectedspeed));
-  
-  //Set gravity, this should reset on client respawn
-  SetEntityGravity(client, GetConVarFloat(cvar_virusday_infectedgravity));
-  
-  //Burn if past cure time
-  if (isPastCureFoundTime) {
-    ServerCommand("sm_burn #%d 10000", GetClientUserId(client));
-  }
-  
-  if (printMessage)
-    CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Virus Day New Infected", client);
-
-  VirusDay_CheckInfectedOver();
-    
-  return;
-}
-
-void VirusDay_CheckInfectedOver()
-{
-  //Pick two people to infect
-  int nonInfected = 0;
-  int infected = 0;
-  
-  for (int i = 1; i <= MaxClients; ++i) {
-    if (IsClientInGame(i) && IsPlayerAlive(i)) {
-      if (isInfected[i])
-        ++infected;
-      else
-        ++nonInfected;
-    }
-  }
-  
-  if (infected == 0) {
-    //Round over, everybody is infected
-    CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Virus Day Non Infected Win Died Off");
-    
-    //Fire CT Win
-    CS_TerminateRound(GetConVarFloat(FindConVar("mp_round_restart_delay")), CSRoundEnd_CTWin, false);
-  }
-  if (nonInfected == 0) {
-    //Round over, everybody is infected
-    CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Virus Day All Infected");
-    
-    //Fire Prisoners Win
-    CS_TerminateRound(GetConVarFloat(FindConVar("mp_round_restart_delay")), CSRoundEnd_TerroristWin, false);
-  }
-}
-
 //Helper function
 void removeClientFromArray(ArrayList array, int client)
 {
@@ -2287,34 +2559,6 @@ void removeClientFromArray(ArrayList array, int client)
     RemoveFromArray(array, FindValueInArray(array, client));
   }
 }
-
-//Called when non infected win virus day
-public Action Timer_VirusDayInfectedWin(Handle timer)
-{
-  for (int i = 1; i <= MaxClients; ++i) {
-    if (IsClientInGame(i) && IsPlayerAlive(i)) {
-      if (isInfected[i]) {
-        //Burn the infected
-        ServerCommand("sm_burn #%d 10000", GetClientUserId(i));
-      }
-    }
-  }
-  
-  isPastCureFoundTime = true;
-  
-  //Disable medic
-  Disable_Medics();
-  
-  //Start draining all infected
-  drainTimer = CreateTimer(GetConVarFloat(cvar_virusday_drain_interval), Timer_DrainHP, _, TIMER_REPEAT);
-  
-  //Print victory message
-  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Virus Day Non Infected Win");
-  
-  //Reset timer handle
-  virusdayNonInfectedWinHandle = null;
-}
-
 
 void Create_Model(int client)
 {
@@ -2363,7 +2607,7 @@ void SafeDelete(int entity)
     AcceptEntityInput(entity, "Kill");
 }  
 
-//Helpers
+//Strip weapons
 void StripWeapons(int client) {
   for (int i = 0; i < 44; i++) { 
     int index = GetEntPropEnt(client, Prop_Send, "m_hMyWeapons", i);
@@ -2386,86 +2630,91 @@ void RemoveWeaponDrop(int client, int entity)
   }
 }
 
-public Action Timer_VirusDayShowHud(Handle timer)
+void VirusDay_InfectClient(int client, bool printMessage)
 {
-  if (!isSpecialDay || specialDay != SPECIALDAY_VIRUSDAY)
-    return Plugin_Handled;
+  isInfected[client] = true;
   
-  int numDead = 0;
-  int numInfected = 0;
-  int numNotInfected = 0;
+  //Set up tint
+  Handle fadePack;
+  CreateDataTimer(0.0, FadeClient, fadePack);
+  WritePackCell(fadePack, client);
+  WritePackCell(fadePack, redColour[0]);
+  WritePackCell(fadePack, redColour[1]);
+  WritePackCell(fadePack, redColour[2]);
+  WritePackCell(fadePack, 15);
   
-  for (int i = 1; i <= MaxClients; ++i) {
-    if (IsClientInGame(i)) {
-      if (!IsPlayerAlive(i))
-        ++numDead;
-      else {
-        if (isInfected[i])
-          ++numInfected;
-        else
-          ++numNotInfected;
-      }
-    }
-  }
+  //Highlight infected red
+  SetEntityRenderColor(client, redColour[0], redColour[1], redColour[2], 255);
   
-  for (int i = 1; i <= MaxClients; ++i) {
-    if (IsClientInGame(i)) {
-      char status[32];
-      char statusColour[10];
-      
-      if (!IsPlayerAlive(i)) {
-        Format(status, sizeof(status), "%s", "Dead");
-        Format(statusColour, sizeof(statusColour), "%s", "#CCCCCC");
-      }
-      else {
-        if (isInfected[i]) {
-          Format(status, sizeof(status), "%s", "Infected");
-          Format(statusColour, sizeof(statusColour), "%s", "#FF0033");
-        }
-        else {
-          Format(status, sizeof(status), "%s", "Not Infected");
-          Format(statusColour, sizeof(statusColour), "%s", "#336600");
-        }
-      }
-      
-      //Hint HUD
-      PrintHintText(i, "%t", "SpecialDay - Virus Day HUD", statusColour, status, numInfected, numNotInfected);
-    }
-  }
-  
-  CreateTimer(0.5, Timer_VirusDayShowHud);
+  //Play sound
+  char infectSounds[3][] = {INFECT_SOUND_1, INFECT_SOUND_2, INFECT_SOUND_3};
+  int randNum = GetRandomInt(0, sizeof(infectSounds) - 1);
 
-  return Plugin_Handled;
+  //Play explosion sounds
+  EmitSoundToAllAny(infectSounds[randNum], client, SNDCHAN_USER_BASE, SNDLEVEL_RAIDSIREN); 
+  
+  //Strip all weapons
+  StripWeapons(client);
+  
+  //Give them knife
+  GivePlayerItem(client, "weapon_knife");
+  
+  //Overlay infected on them
+  Create_Model(client);
+  
+  //Set blood overlay
+  ShowOverlayToClient(client, "overlays/invex/infectedblood.vmt");
+  
+  //Set health
+  SetEntProp(client, Prop_Data, "m_iHealth", GetConVarInt(cvar_virusday_infectedhealth));
+  
+  //Give speed boost
+  SetEntPropFloat(client, Prop_Data, "m_flLaggedMovementValue", GetConVarFloat(cvar_virusday_infectedspeed));
+  
+  //Set gravity
+  SetEntityGravity(client, GetConVarFloat(cvar_virusday_infectedgravity));
+  
+  //Burn if past cure time
+  if (isPastCureFoundTime) {
+    ServerCommand("sm_burn #%d 10000", GetClientUserId(client));
+  }
+  
+  if (printMessage)
+    CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Virus Day New Infected", client);
+
+  VirusDay_CheckInfectedOver();
+    
+  return;
 }
 
-public Action Timer_DrainHP(Handle timer)
+void VirusDay_CheckInfectedOver()
 {
-  //For each client
-  for (new i = 1; i <= MaxClients; ++i)
-  {
-    //Check if player is truly alive
-    if (IsClientInGame(i) && IsPlayerAlive(i) && isInfected[i]) {
-      int currentHP = GetEntProp(i, Prop_Send, "m_iHealth");
-      int drainAmount = GetRandomInt(GetConVarInt(cvar_virusday_min_drain), GetConVarInt(cvar_virusday_max_drain));
-      
-      //If player should die
-      if (drainAmount > currentHP) {
-        //Play death sound
-        char infectDeathSounds[2][] = {INFECT_DEATH_SOUND_1, INFECT_DEATH_SOUND_2};
-        int randNum = GetRandomInt(0, sizeof(infectDeathSounds) - 1);
-
-        //Play explosion sounds
-        EmitSoundToAllAny(infectDeathSounds[randNum], i, SNDCHAN_USER_BASE, SNDLEVEL_RAIDSIREN); 
-        
-        //Kill the player
-        SetEntProp(i, Prop_Send, "m_ArmorValue", 0, 1);  //Set Armor to 0
-        DealDamage(i, currentHP + 1, i, DMG_GENERIC, "");
-      }
-      //Othwerwise drain their HP
-      else {
-        SetEntityHealth(i, currentHP - drainAmount);
-      }
+  //Pick two people to infect
+  int nonInfected = 0;
+  int infected = 0;
+  
+  for (int i = 1; i <= MaxClients; ++i) {
+    if (IsClientInGame(i) && IsPlayerAlive(i)) {
+      if (isInfected[i])
+        ++infected;
+      else
+        ++nonInfected;
     }
+  }
+  
+  if (infected == 0) {
+    //Round over, everybody is infected
+    CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Virus Day Non Infected Win Died Off");
+    
+    //Fire CT Win
+    CS_TerminateRound(GetConVarFloat(FindConVar("mp_round_restart_delay")), CSRoundEnd_CTWin, false);
+  }
+  if (nonInfected == 0) {
+    //Round over, everybody is infected
+    CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Virus Day All Infected");
+    
+    //Fire Prisoners Win
+    CS_TerminateRound(GetConVarFloat(FindConVar("mp_round_restart_delay")), CSRoundEnd_TerroristWin, false);
   }
 }
 
@@ -2525,99 +2774,6 @@ public void Disable_Medics()
       AcceptEntityInput(entity, "Disable");
     }
   }
-}
-
-//Called when FFADM round ends
-public Action Timer_FFADMRoundEnds(Handle timer)
-{
-  //Set FFA to stalement so no winner is picked based on deaths
-  isFFARoundStalemate = true;
-
-  for (int i = 1; i <= MaxClients; ++i) {
-    if (IsClientInGame(i) && IsPlayerAlive(i)) {
-      ForcePlayerSuicide(i);
-    }
-  }
-  
-  //Print round end message
-  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - FFADM Round Over");
-  
-  //Reset timer handle
-  freeforallRoundEndHandle = null;
-}
-
-//Timer called once FFADM day starts
-public Action FFADM_Start(Handle timer)
-{
-  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - FFADM Started");
-  
-  freeforallStartTimer = null;
-  
-  return Plugin_Handled;
-}
-
-//Called when hunger games round ends
-public Action Timer_HungerGamesRoundEnds(Handle timer)
-{
-  //Set FFA to stalement so no winner is picked based on deaths
-  isFFARoundStalemate = true;
-
-  for (int i = 1; i <= MaxClients; ++i) {
-    if (IsClientInGame(i) && IsPlayerAlive(i)) {
-      ForcePlayerSuicide(i);
-    }
-  }
-  
-  //Print round end message
-  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Hunger Games Round Over");
-  
-  //Reset timer handle
-  freeforallRoundEndHandle = null;
-}
-
-//Timer called once hunger games start
-public Action HungerGames_Start(Handle timer)
-{
-  //For each player, randomly give them: health, primary weapon, secondary weapon, and grenades
-  char primaryWeapons[23][] = {"weapon_ak47","weapon_aug","weapon_awp","weapon_bizon","weapon_famas","weapon_g3sg1","weapon_galilar","weapon_m249","weapon_m4a1","weapon_m4a1_silencer","weapon_mac10","weapon_mag7","weapon_mp7","weapon_mp9","weapon_negev","weapon_nova","weapon_p90","weapon_sawedoff","weapon_scar20","weapon_sg556","weapon_ssg08","weapon_ump45","weapon_xm1014"};
-  char secondaryWeapons[10][] = {"weapon_cz75a","weapon_deagle","weapon_fiveseven","weapon_elite","weapon_glock","weapon_hkp2000","weapon_p250","weapon_revolver","weapon_usp_silencer","weapon_tec9"};
-  char grenades[6][] = {"weapon_decoy","weapon_flashbang","weapon_hegrenade","weapon_incgrenade","weapon_molotov","weapon_smokegrenade"};
-  
-  for (int i = 1; i < MaxClients; ++i) {
-    if (IsClientInGame(i) && IsPlayerAlive(i)) {
-      //Strip all current weapons from client
-      StripWeapons(i);
-      
-      //Give them knife
-      GivePlayerItem(i, "weapon_knife");
-      
-      //Give player random health
-      float randomHealth = GetRandomFloat(GetConVarFloat(cvar_hungergames_min_random_health), GetConVarFloat(cvar_hungergames_max_random_health));
-      SetEntProp(i, Prop_Data, "m_iHealth", RoundToFloor(randomHealth));
-      
-      //Give player full armour
-      SetEntProp(i, Prop_Data, "m_ArmorValue", 100, 1);
-      
-      //Give player random primary
-      int randNum = GetRandomInt(0, sizeof(primaryWeapons) - 1);
-      GivePlayerItem(i, primaryWeapons[randNum]);
-        
-      //Give player random secondary
-      randNum = GetRandomInt(0, sizeof(secondaryWeapons) - 1);
-      GivePlayerItem(i, secondaryWeapons[randNum]);
-      
-      //Give player random grenades
-      randNum = GetRandomInt(0, sizeof(grenades) - 1);
-      GivePlayerItem(i, grenades[randNum]);
-      
-    }
-  }
-
-  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Hunger Games Started");
-  
-  freeforallStartTimer = null;
-  
-  return Plugin_Handled;
 }
 
 //Teleports players to beam that spawns on wardens location
@@ -2681,9 +2837,10 @@ void TeleportPlayersToWarden(int warden, float tptime, char[] specialDayName, Ti
   TE_SendToAll();
 }
 
-//
-// Natives
-//
+
+/*********************************
+ * Natives
+ *********************************/
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
@@ -2696,5 +2853,5 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public int Native_IsSpecialDay(Handle plugin, int numParams)
 {
-  return isSpecialDay;
+  return (specialDay != SPECIALDAY_NONE);
 }
