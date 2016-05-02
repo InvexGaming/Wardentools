@@ -10,7 +10,7 @@
 UserMsg g_FadeUserMsgId; //For Blind
 
 //Defines
-#define VERSION "1.20"
+#define VERSION "1.21"
 #define CHAT_TAG_PREFIX "[{pink}Warden Tools{default}] "
 
 #define COLOUR_DEFAULT 0
@@ -1175,7 +1175,7 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
     }
     else if (StrEqual(info, "Option_Warday")) {
       //Warday
-      specialDay = SPECIALDAY_WARDAY;
+      setSpecialDay(SPECIALDAY_WARDAY);
       
       CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Warday", RoundToNearest(GetConVarFloat(cvar_warday_tptime)));
       
