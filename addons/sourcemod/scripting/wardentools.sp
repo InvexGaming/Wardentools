@@ -10,7 +10,7 @@
 UserMsg g_FadeUserMsgId; //For Blind
 
 //Defines
-#define VERSION "1.21"
+#define VERSION "1.22"
 #define CHAT_TAG_PREFIX "[{pink}Warden Tools{default}] "
 
 #define COLOUR_DEFAULT 0
@@ -33,7 +33,8 @@ UserMsg g_FadeUserMsgId; //For Blind
 #define SPECIALDAY_WARDAY 5
 #define SPECIALDAY_VIRUSDAY 6
 #define SPECIALDAY_FFADM 7
-#define SPECIALDAY_HUNGERGAMES 8
+#define SPECIALDAY_TEAMDM 8
+#define SPECIALDAY_HUNGERGAMES 9
 
 #define ROUNDMODIFIER_NONE 0
 #define ROUNDMODIFIER_LOWGRAVITY 1
@@ -91,11 +92,16 @@ ConVar cvar_virusday_drain_interval = null;
 ConVar cvar_ffadm_tptime = null;
 ConVar cvar_ffadm_hidetime = null;
 ConVar cvar_ffadm_slaytime = null;
+ConVar cvar_ffadm_autobeacontime = null;
+ConVar cvar_teamdm_slaytime = null;
+ConVar cvar_teamdm_tptime = null;
+ConVar cvar_teamdm_hidetime = null;
 ConVar cvar_hungergames_tptime = null;
 ConVar cvar_hungergames_hidetime = null;
 ConVar cvar_hungergames_slaytime = null;
 ConVar cvar_hungergames_min_random_health = null;
 ConVar cvar_hungergames_max_random_health = null;
+ConVar cvar_hungergames_autobeacontime = null;
 ConVar cvar_roundmodifier_lowgravity = null;
 ConVar cvar_roundmodifier_walkingonly_maxspeed = null;
 ConVar cvar_roundmodifier_fastspeed = null;
@@ -160,8 +166,11 @@ Handle infectionStartTimer = null;
 Handle freeforallRoundEndHandle = null;
 Handle freeforallStartTimer = null;
 bool isFFARoundStalemate = false;
+bool isPastHideTime = false;
 
 Handle hnsPrisonersWinHandle = null;
+
+Handle autoBeaconHandle = null;
 
 //Per map settings
 int numSpecialDays = 0;
@@ -244,17 +253,23 @@ public void OnPluginStart()
   cvar_ffadm_tptime = CreateConVar("sm_wardentools_ffadm_tptime", "10.0", "The amount of time before all players are teleported to start beacon (def. 10.0)");
   cvar_ffadm_hidetime = CreateConVar("sm_wardentools_ffadm_hidetime", "60", "Number of seconds everyone has to hide (def. 60)");
   cvar_ffadm_slaytime = CreateConVar("sm_wardentools_ffadm_slaytime", "420.0", "The amount of time before all players are slayed (def. 420.0)");
+  cvar_ffadm_autobeacontime = CreateConVar("sm_wardentools_ffadm_autobeacontime", "300.0", "The amount of time before all players are beaconed and told to actively hunt (def. 300.0)");
   
   cvar_hungergames_tptime = CreateConVar("sm_wardentools_hungergames_tptime", "10.0", "The amount of time before all players are teleported to start beacon (def. 10.0)");
   cvar_hungergames_hidetime = CreateConVar("sm_wardentools_hungergames_hidetime", "60", "Number of seconds everyone has to hide (def. 60)");
   cvar_hungergames_slaytime = CreateConVar("sm_wardentools_hungergames_slaytime", "420.0", "The amount of time before all players are slayed (def. 420.0)");
   cvar_hungergames_min_random_health = CreateConVar("sm_wardentools_hungergames_min_random_health", "100.0", "The lower bound for randomised health for hunger games (def. 75.0)");
   cvar_hungergames_max_random_health = CreateConVar("sm_wardentools_hungergames_max_random_health", "175.0", "The upper bound for randomised health for hunger games (def. 125.0)");
+  cvar_hungergames_autobeacontime = CreateConVar("sm_wardentools_hungergames_autobeacontime", "300.0", "The amount of time before all players are beaconed and told to actively hunt (def. 300.0)");
   
   cvar_roundmodifier_lowgravity = CreateConVar("sm_wardentools_roundmodifier_lowgravity", "250", "The gravity all players play with (def. 250)");
   cvar_roundmodifier_fastspeed = CreateConVar("sm_wardentools_roundmodifier_fastspeed", "1.75", "The speed all players play with (def. 1.75)");
   cvar_roundmodifier_fastspeed_gravity = CreateConVar("sm_wardentools_roundmodifier_fastspeed_gravity", "0.65", "The gravity to aid fast speed (def. 0.65)");
   cvar_roundmodifier_walkingonly_maxspeed = CreateConVar("sm_wardentools_roundmodifier_walkingonly_maxspeed", "125", "The maximum speed all players play with (def. 125)");
+  
+  cvar_teamdm_tptime = CreateConVar("sm_wardentools_teamdm_tptime", "10.0", "The amount of time before all players are teleported to start beacon (def. 10.0)");
+  cvar_teamdm_hidetime = CreateConVar("sm_wardentools_teamdm_hidetime", "60", "Number of seconds everyone has to hide (def. 60)");
+  cvar_teamdm_slaytime = CreateConVar("sm_wardentools_teamdm_slaytime", "420.0", "The amount of time before all players are slayed (def. 420.0)");
   
   //Create array
   micSwapTargets = CreateArray();
@@ -385,6 +400,15 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
       
       return Plugin_Handled;
     }
+    else if (specialDay == SPECIALDAY_TEAMDM && isPastHideTime) {
+      //Check for player trying to kill team mates
+      //Everybody should be highlighted and on a team so this is sufficient
+      if (isHighlighted[victim] && isHighlighted[attacker]) {
+        if (highlightedColour[victim] == highlightedColour[attacker]) {
+          return Plugin_Handled;
+        }
+      }
+    }
     else if (specialDayDamageProtection) {
       return Plugin_Handled;
     }
@@ -453,7 +477,7 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
   //Check if team DM should be stopped
   if (isInHighlightTeamDM) {
     //Check team counts
-    int teamsLeft = getTeamDMNumTeamsAlive();
+    int teamsLeft = getTeamDMNumTeamsAlive_TOnly();
 
     if (teamsLeft <= 1) {
       //Last team left or everybody has died, auto turn off team DM
@@ -527,6 +551,39 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
           CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Free For All Winner", lastAliveClient, "FFA Deathmatch");
         else if (specialDay == SPECIALDAY_HUNGERGAMES)
           CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Free For All Winner", lastAliveClient, "Hunger Games");
+      }
+    }
+    else if (specialDay == SPECIALDAY_TEAMDM && isPastHideTime) {
+      //Check if team DM should be stopped
+      int teamsLeft = getTeamDMNumTeamsAlive();
+
+      if (teamsLeft <= 1) {
+        //Find winning team
+        int winningTeamCode = COLOUR_DEFAULT;
+        
+        for (int i = 1; i < MaxClients; ++i) {
+          if (IsClientInGame(i) && IsPlayerAlive(i)) {
+            if (isHighlighted[i]) {
+              winningTeamCode = highlightedColour[i];
+              break;
+            }
+          }
+        }
+      
+        //Print message to all
+        if (winningTeamCode == COLOUR_RED)
+          CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Winner", "darkred", "red");
+        else if (winningTeamCode == COLOUR_BLUE)
+          CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Winner", "blue", "blue");
+        else if (winningTeamCode == COLOUR_GREEN)
+          CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Winner", "lightgreen", "green");
+        else if (winningTeamCode == COLOUR_YELLOW)
+          CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Winner", "olive", "yellow");
+        else if (winningTeamCode == COLOUR_BLACK)
+          CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Winner", "default", "black");
+
+        //End the round
+        CS_TerminateRound(GetConVarFloat(FindConVar("mp_round_restart_delay")), CSRoundEnd_CTWin, false);
       }
     }
   }
@@ -709,6 +766,7 @@ public int MainMenuHandler(Menu menu, MenuAction action, int client, int param2)
       AddMenuItem(SpecialDaysMenu, "Option_Warday", "Warday");
       AddMenuItem(SpecialDaysMenu, "Option_VirusDay", "Zombie Day");
       AddMenuItem(SpecialDaysMenu, "Option_FFADM", "FFA Deathmatch Day");
+      AddMenuItem(SpecialDaysMenu, "Option_TeamDM", "Team Deathmatch Day");
       AddMenuItem(SpecialDaysMenu, "Option_HungerGamesDay", "Hunger Games Day");
       
       DisplayMenu(SpecialDaysMenu, client, MENU_TIME_FOREVER);
@@ -897,7 +955,7 @@ public int GameMenuHandler(Menu menu, MenuAction action, int client, int param2)
       }
       
       //Check if at least two teams exist
-      int teamsLeft = getTeamDMNumTeamsAlive();
+      int teamsLeft = getTeamDMNumTeamsAlive_TOnly();
       
       //Check if we can continue
       if (teamsLeft < 2) {
@@ -1163,8 +1221,7 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
       CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - HNS", GetConVarInt(cvar_hns_ctfreezetime), RoundToNearest(GetConVarFloat(cvar_hns_tptime)));
 
       //Create timer to kill CT's if they lose
-      float timer_time = float(GetConVarInt(cvar_hns_hiderswintime) - GetTimeSinceRoundStart());
-      hnsPrisonersWinHandle = CreateTimer(timer_time, Timer_HNSPrisonersWin);
+      hnsPrisonersWinHandle = CreateTimer(GetConVarFloat(cvar_hns_hiderswintime) - GetTimeSinceRoundStart(), Timer_HNSPrisonersWin);
       
       //Create timer for damage protection
       specialDayDamageProtection = true;
@@ -1214,8 +1271,7 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
       }
       
       //Create timer to kill infected if they lose
-      float timer_time = float(GetConVarInt(cvar_virusday_noninfectedwintime) - GetTimeSinceRoundStart());
-      virusdayNonInfectedWinHandle = CreateTimer(timer_time, Timer_VirusDayInfectedWin);
+      virusdayNonInfectedWinHandle = CreateTimer(GetConVarFloat(cvar_virusday_noninfectedwintime) - GetTimeSinceRoundStart(), Timer_VirusDayInfectedWin);
       
       //Turn on friendly fire to prevent early round ends
       SetConVarBool(FindConVar("mp_friendlyfire"), true);
@@ -1244,8 +1300,7 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
       }
       
       //Create timer to slay all players
-      float timer_time = float(GetConVarInt(cvar_ffadm_slaytime) - GetTimeSinceRoundStart());
-      freeforallRoundEndHandle = CreateTimer(timer_time, Timer_FFADMRoundEnds);
+      freeforallRoundEndHandle = CreateTimer(GetConVarFloat(cvar_ffadm_slaytime) - GetTimeSinceRoundStart(), Timer_FFADMRoundEnds);
       
       //Turn on friendly fire for FFA
       SetConVarBool(FindConVar("mp_friendlyfire"), true);
@@ -1255,6 +1310,9 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
       specialDayDamageProtection = true;
       damageProtectionHandle = CreateTimer(GetConVarFloat(cvar_ffadm_tptime) + GetConVarFloat(cvar_ffadm_hidetime), SpecialDay_DamageProtection_End);
       
+      //Create Timer for auto beacons
+      autoBeaconHandle = CreateTimer(GetConVarFloat(cvar_ffadm_autobeacontime) - GetTimeSinceRoundStart(), Timer_AutoBeaconOn); 
+      
       //FFADM Day message
       CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - FFADM Day", RoundToNearest(GetConVarFloat(cvar_ffadm_tptime)), RoundToNearest(GetConVarFloat(cvar_ffadm_hidetime)));
       
@@ -1263,6 +1321,53 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
       
       //Teleport all players to warden beam
       TeleportPlayersToWarden(client, GetConVarFloat(cvar_ffadm_tptime), "FFA Deathmatch", Teleport_Start_All, TELEPORTTYPE_ALL);
+    }
+    else if (StrEqual(info, "Option_TeamDM")) {
+      //Check that we have 4 people total alive
+      int numAlive = 0;
+      
+      for (int i = 1; i <= MaxClients; ++i) {
+        if (IsClientInGame(i) && IsPlayerAlive(i)) {
+          if (GetClientTeam(i) == CS_TEAM_T || GetClientTeam(i) == CS_TEAM_CT) {
+            ++numAlive;
+          }
+        }
+      }
+      
+      //Check for enough people
+      if (numAlive < 4) {
+        CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - More People Needed", 4);
+        return;
+      }
+      
+      setSpecialDay(SPECIALDAY_TEAMDM);
+      
+      //Remove radar
+      for (int i = 1; i <= MaxClients; ++i) {
+        if (IsClientInGame(i) && IsPlayerAlive(i)) {
+          RemoveRadar(i);
+        }
+      }
+      
+      //Create timer to slay all players
+      freeforallRoundEndHandle = CreateTimer(GetConVarFloat(cvar_teamdm_slaytime) - GetTimeSinceRoundStart(), Timer_TeamDMRoundEnds);
+      
+      //Turn on friendly fire to prevent early round ends
+      SetConVarBool(FindConVar("mp_friendlyfire"), true);
+      SetConVarBool(FindConVar("mp_teammates_are_enemies"), true);
+      
+      //Create timer for damage protection
+      specialDayDamageProtection = true;
+      damageProtectionHandle = CreateTimer(GetConVarFloat(cvar_teamdm_tptime) + GetConVarFloat(cvar_teamdm_hidetime), SpecialDay_DamageProtection_End);
+      
+      //Team Deathmatch Day message
+      CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Day", RoundToNearest(GetConVarFloat(cvar_teamdm_tptime)), RoundToNearest(GetConVarFloat(cvar_teamdm_hidetime)));
+      
+      //Create timer for team dm start
+      freeforallStartTimer = CreateTimer(GetConVarFloat(cvar_teamdm_tptime) + GetConVarFloat(cvar_teamdm_hidetime), TeamDM_Start);
+      
+      //Teleport all players to warden beam
+      TeleportPlayersToWarden(client, GetConVarFloat(cvar_teamdm_tptime), "Team Deathmatch", Teleport_Start_All, TELEPORTTYPE_ALL);
     }
     else if (StrEqual(info, "Option_HungerGamesDay")) {
       setSpecialDay(SPECIALDAY_HUNGERGAMES);
@@ -1275,8 +1380,7 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
       }
       
       //Create timer to slay all players
-      float timer_time = float(GetConVarInt(cvar_hungergames_slaytime) - GetTimeSinceRoundStart());
-      freeforallRoundEndHandle = CreateTimer(timer_time, Timer_HungerGamesRoundEnds);
+      freeforallRoundEndHandle = CreateTimer(GetConVarFloat(cvar_hungergames_slaytime) - GetTimeSinceRoundStart(), Timer_HungerGamesRoundEnds);
       
       //Turn on friendly fire for FFA
       SetConVarBool(FindConVar("mp_friendlyfire"), true);
@@ -1285,6 +1389,9 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
       //Create timer for damage protection
       specialDayDamageProtection = true;
       damageProtectionHandle = CreateTimer(GetConVarFloat(cvar_hungergames_tptime) + GetConVarFloat(cvar_hungergames_hidetime), SpecialDay_DamageProtection_End);
+      
+      //Create Timer for auto beacons
+      autoBeaconHandle = CreateTimer(GetConVarFloat(cvar_hungergames_autobeacontime) - GetTimeSinceRoundStart(), Timer_AutoBeaconOn);
       
       //Strip all weapons
       for (int i = 1; i < MaxClients; ++i) {
@@ -1932,16 +2039,19 @@ public Action VirusDay_StartInfection(Handle timer)
   
   for (int i = 1; i <= MaxClients; ++i) {
     if (IsClientInGame(i) && IsPlayerAlive(i)) {
-      PushArrayCell(eligblePlayers, i);
-      ++entryCount;
+      if (GetClientTeam(i) == CS_TEAM_T || GetClientTeam(i) == CS_TEAM_CT) {
+        PushArrayCell(eligblePlayers, i);
+        ++entryCount;
+      }
     }
   }
+  
   int totalToGive = 2;
   
   //Check to see if at least 'totalToGive' players are alive at this point and if not, abort
   if (entryCount < totalToGive) {
     CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Virus Day Aborted");
-    infectionStartTimer = null; //Needed so invalid handle doesnt occur later in ResetVars()
+    infectionStartTimer = null; //Needed so invalid handle doesnt occur later in Reset_Vars()
     return Plugin_Handled;
   }
   
@@ -2122,6 +2232,190 @@ public Action FFADM_Start(Handle timer)
   return Plugin_Handled;
 }
 
+//Called when TeamDM round ends
+public Action Timer_TeamDMRoundEnds(Handle timer)
+{
+  //Set FFA to stalement so no winner is picked based on deaths
+  isFFARoundStalemate = true;
+
+  for (int i = 1; i <= MaxClients; ++i) {
+    if (IsClientInGame(i) && IsPlayerAlive(i)) {
+      ForcePlayerSuicide(i);
+    }
+  }
+  
+  //Print round end message
+  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Round Over");
+  
+  //Reset timer handle
+  freeforallRoundEndHandle = null;
+}
+
+//Timer called once TeamDM day starts
+public Action TeamDM_Start(Handle timer)
+{
+  //Check that there are enough players to play
+  int entryCount = 0;
+  ArrayList eligblePlayers = CreateArray(MaxClients+1);
+  
+  for (int i = 1; i <= MaxClients; ++i) {
+    if (IsClientInGame(i) && IsPlayerAlive(i)) {
+      if (GetClientTeam(i) == CS_TEAM_T || GetClientTeam(i) == CS_TEAM_CT) {
+        PushArrayCell(eligblePlayers, i);
+        ++entryCount;
+      }
+    }
+  }
+  
+  //Check to see if the minimum number of players are present
+  if (entryCount < 4) {
+    CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Aborted");
+    freeforallStartTimer = null; //Needed so invalid handle doesnt occur later in Reset_Vars()
+    CS_TerminateRound(GetConVarFloat(FindConVar("mp_round_restart_delay")), CSRoundEnd_CTWin, false);
+    return Plugin_Handled;
+  }
+  
+  //Give players full armour
+  for (int i = 1; i < MaxClients; ++i) {
+    if (IsClientInGame(i) && IsPlayerAlive(i)) {
+      GivePlayerItem( i, "item_assaultsuit");
+      SetEntProp(i, Prop_Data, "m_ArmorValue", 100, 1);
+    }
+  }
+
+  //Pick teams and highlight players
+  int numTeams = 0;
+  
+  if (entryCount <= 10)
+    numTeams = 2;
+  else if (entryCount <= 20)
+    numTeams = 3;
+  else if (entryCount <= 30)
+    numTeams = 4;
+  else if (entryCount <= 40)
+    numTeams = 5;
+  
+  int teamColourCodes[5] = { COLOUR_RED, COLOUR_BLUE, COLOUR_GREEN, COLOUR_YELLOW, COLOUR_BLACK};
+  int teamCounter = 0;
+  int numAlive = entryCount;  //needed for loop
+  
+  //Assign team to each eligble player
+  for (int c = 0; c < numAlive; ++c) {
+    int rand = GetRandomInt(0, entryCount - 1);
+    int client = GetArrayCell(eligblePlayers, rand);
+    removeClientFromArray(eligblePlayers, client);
+    entryCount = GetArraySize(eligblePlayers)
+    
+    //Here we have a random client, assign them to a random team
+    isHighlighted[client] = true;
+    highlightedColour[client] = teamColourCodes[teamCounter];
+    
+    //Highlight them and print a message
+    if (highlightedColour[client] == COLOUR_RED) {
+      SetEntityRenderColor(client, redColour[0], redColour[1], redColour[2], 255);
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Started", numTeams, "darkred", "red");
+    }
+    else if (highlightedColour[client] == COLOUR_BLUE) {
+      SetEntityRenderColor(client, blueColour[0], blueColour[1], blueColour[2], 255);
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Started", numTeams, "blue", "blue");
+    }
+    else if (highlightedColour[client] == COLOUR_GREEN) {
+      SetEntityRenderColor(client, greenColour[0], greenColour[1], greenColour[2], 255);
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Started", numTeams, "lightgreen", "green");
+    }
+    else if (highlightedColour[client] == COLOUR_YELLOW) {
+      SetEntityRenderColor(client, yellowColour[0], yellowColour[1], yellowColour[2], 255);
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Started", numTeams, "olive", "yellow");
+    }
+    else if (highlightedColour[client] == COLOUR_BLACK) {
+      SetEntityRenderColor(client, blackColour[0], blackColour[1], blackColour[2], 255);
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Started", numTeams, "default", "black");
+    }
+    
+    ++teamCounter;
+    
+    //Reset counter if we reach last team
+    if (teamCounter == numTeams)
+      teamCounter = 0;
+  }
+  
+  isPastHideTime = true; //hide time is over
+  
+  //Enable hud for all
+  CreateTimer(0.5, Timer_TeamDMShowHud);
+  
+  freeforallStartTimer = null;
+  
+  return Plugin_Handled;
+}
+
+//Team DM HUD
+public Action Timer_TeamDMShowHud(Handle timer)
+{
+  if (!specialDay || specialDay != SPECIALDAY_TEAMDM)
+    return Plugin_Handled;
+  
+  for (int client = 1; client <= MaxClients; ++client) {
+    if (IsClientInGame(client) && isHighlighted[client]) {
+      int teammatesAlive = 0;
+      int teammatesTotal = 0;
+      int enemiesAlive = 0;
+      int enemiesTotal = 0;
+    
+      //Get required info
+      for (int j = 1; j <= MaxClients; ++j) {
+        if (IsClientInGame(j) && isHighlighted[j]) {
+          if (j == client)  //ignore client
+            continue;
+            
+          if (highlightedColour[j] == highlightedColour[client]) {
+            ++teammatesTotal;
+            if (IsPlayerAlive(j))
+              ++teammatesAlive;
+          }
+          else {
+            ++enemiesTotal;
+            if (IsPlayerAlive(j))
+              ++enemiesAlive;
+          }
+        }
+      }
+    
+      char team[32];
+      char teamColour[10];
+      
+      if (highlightedColour[client] == COLOUR_RED) {
+        Format(team, sizeof(team), "%s", "RED");
+        Format(teamColour, sizeof(teamColour), "%s", "#FF0033");
+      }
+      else if (highlightedColour[client] == COLOUR_BLUE) {
+        Format(team, sizeof(team), "%s", "BLUE");
+        Format(teamColour, sizeof(teamColour), "%s", "#0000FF");
+      }
+      else if (highlightedColour[client] == COLOUR_GREEN) {
+        Format(team, sizeof(team), "%s", "GREEN");
+        Format(teamColour, sizeof(teamColour), "%s", "#336600");
+      }
+      else if (highlightedColour[client] == COLOUR_YELLOW) {
+        Format(team, sizeof(team), "%s", "YELLOW");
+        Format(teamColour, sizeof(teamColour), "%s", "#FFFF00");
+      }
+      else if (highlightedColour[client] == COLOUR_BLACK) {
+        Format(team, sizeof(team), "%s", "BLACK");
+        Format(teamColour, sizeof(teamColour), "%s", "#000000");
+      }
+      
+      //Hint HUD
+      PrintHintText(client, "%t", "SpecialDay - Team Deathmatch HUD", teamColour, team, teammatesAlive, teammatesTotal, enemiesAlive, enemiesTotal);
+    }
+  }
+  
+  CreateTimer(0.5, Timer_TeamDMShowHud);
+
+  return Plugin_Handled;
+}
+
+
 //Called when hunger games round ends
 public Action Timer_HungerGamesRoundEnds(Handle timer)
 {
@@ -2180,6 +2474,8 @@ public Action HungerGames_Start(Handle timer)
     }
   }
 
+  isPastHideTime = true; //no longer hide time
+  
   CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Hunger Games Started");
   
   freeforallStartTimer = null;
@@ -2187,6 +2483,13 @@ public Action HungerGames_Start(Handle timer)
   return Plugin_Handled;
 }
 
+//Auto beacon all alive players
+public Action Timer_AutoBeaconOn(Handle timer)
+{
+  ServerCommand("sm_beacon @alive");
+  ServerCommand("sm_msay All players must now actively hunt other players.");
+  autoBeaconHandle = null;
+}
 
 /*********************************
  *  Helper Functions
@@ -2208,6 +2511,7 @@ void Reset_Vars()
   if (infectionStartTimer != null) delete infectionStartTimer;
   if (freeforallRoundEndHandle != null) delete freeforallRoundEndHandle; 
   if (freeforallStartTimer != null) delete freeforallStartTimer;
+  if (autoBeaconHandle != null) delete autoBeaconHandle;
   
   //Reset settings
   currentBeamsUsed = 0;
@@ -2226,6 +2530,7 @@ void Reset_Vars()
   isInInfectedHideTime = false;
   isPastCureFoundTime = false;
   isFFARoundStalemate = false
+  isPastHideTime = false;
   
   SetConVarInt(FindConVar("sv_gravity"), orig_sv_gravity);
   SetConVarInt(FindConVar("sv_maxspeed"), orig_sv_maxspeed);
@@ -2501,6 +2806,15 @@ public Action BlockPickup(int client, int weapon)
         return Plugin_Handled;
       }
     }
+    else if (specialDay == SPECIALDAY_HUNGERGAMES && !isPastHideTime) {
+      char weaponClass[64];
+      GetEntityClassname(weapon, weaponClass, sizeof(weaponClass));
+      
+      if (StrEqual(weaponClass, "weapon_knife"))
+          return Plugin_Continue;
+
+      return Plugin_Handled;
+    }
   }
   
   return Plugin_Continue;
@@ -2528,8 +2842,8 @@ void turnOnTeamDM()
   CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "Team Deathmatch - Turned On");
 }
 
-//Get number of teams left alive in team DM
-int getTeamDMNumTeamsAlive()
+//Get number of teams left alive in team DM (T Only)
+int getTeamDMNumTeamsAlive_TOnly()
 {
   //Check if at least two teams exist
   ArrayList teamsArray = CreateArray(MaxClients);
@@ -2543,6 +2857,28 @@ int getTeamDMNumTeamsAlive()
           if (index == -1)
             PushArrayCell(teamsArray, highlightedColour[i]);
           
+        }
+      }
+    }
+  }
+  
+  return GetArraySize(teamsArray);
+}
+
+//Get number of teams left alive in team DM (T Only)
+int getTeamDMNumTeamsAlive()
+{
+  //Check if at least two teams exist
+  ArrayList teamsArray = CreateArray(MaxClients);
+
+  for (int i = 1; i <= MaxClients; ++i) {
+    if (IsClientInGame(i) && IsPlayerAlive(i)) {
+      if (GetClientTeam(i) == CS_TEAM_T || GetClientTeam(i) == CS_TEAM_CT) {
+        if (isHighlighted[i]) {
+          int index = FindValueInArray(teamsArray, highlightedColour[i]);
+          
+          if (index == -1)
+            PushArrayCell(teamsArray, highlightedColour[i]);
         }
       }
     }

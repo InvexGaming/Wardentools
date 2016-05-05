@@ -133,7 +133,7 @@
   }
   "SpecialDay - FFADM Round Over"
   {
-    "en"       "The {green}FFA deathmatch{default} day is now over. Remaining alive players have been slain."
+    "en"       "The {green}FFA deathmatch{default} day is now over. There was no winner. Remaining alive players have been slain."
   }
   "SpecialDay - FFADM Day"
   {
@@ -148,6 +148,34 @@
   {
     "#format"		"{1:N},{2:s}"
     "en"       "{green}{1}{default} has won the {green}{2}{default} day!"
+  }
+  "SpecialDay - Team Deathmatch Started"
+  {
+    "#format"		"{1:d},{2:s},{3:s}"
+    "en" "The {green}Team Deathmatch{default} day has now started! There are {green}{1}{default} total teams. You are on team {{2}}{3}{default}. You may now damage players from other teams."
+  }
+  "SpecialDay - Team Deathmatch Day"
+  {
+    "#format"		"{1:d},{2:d}"
+    "en"			"This round is a {green}Team Deathmatch{default} day! All players will be teleported to the start beacon in {green}{1}{default} seconds. You then have {green}{2}{default} seconds to gather weapons and hide!"
+  }
+  "SpecialDay - Team Deathmatch Round Over"
+  {
+    "en"       "The {green}Team Deathmatch{default} day is now over. There was no winning team. Remaining alive players have been slain."
+  }
+  "SpecialDay - Team Deathmatch Aborted"
+  {
+    "en"			"The {green}Team Deathmatch{default} was aborted because not enough players were alive when picking the teams."
+  }
+  "SpecialDay - Team Deathmatch Winner"
+  {
+    "#format"		"{1:s},{2:s}"
+    "en" "The {green}Team Deathmatch{default} day is over. The {{1}}{2}{default} team have obliterated the competition!"
+  }
+  "SpecialDay - Team Deathmatch HUD"
+  {
+    "#format"		"{1:s},{2:s},{3:d},{4:d},{5:d},{6:d}"
+    "en"			"<font size='16'>Your Team: <font color='{1}'>{2}</font>\nTeammates alive: <font color='#336600'>{3}/{4}</font>\nEnemies alive: <font color='#FF0033'>{5}/{6}</font></font>"
   }
   "SpecialDay - Hunger Games Day"
   {
