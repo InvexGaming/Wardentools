@@ -10,7 +10,7 @@
 UserMsg g_FadeUserMsgId; //For Blind
 
 //Defines
-#define VERSION "1.22"
+#define VERSION "1.23"
 #define CHAT_TAG_PREFIX "[{pink}Warden Tools{default}] "
 
 #define COLOUR_DEFAULT 0
@@ -96,6 +96,7 @@ ConVar cvar_ffadm_autobeacontime = null;
 ConVar cvar_teamdm_slaytime = null;
 ConVar cvar_teamdm_tptime = null;
 ConVar cvar_teamdm_hidetime = null;
+ConVar cvar_teamdm_autobeacontime = null;
 ConVar cvar_hungergames_tptime = null;
 ConVar cvar_hungergames_hidetime = null;
 ConVar cvar_hungergames_slaytime = null;
@@ -171,6 +172,9 @@ bool isPastHideTime = false;
 Handle hnsPrisonersWinHandle = null;
 
 Handle autoBeaconHandle = null;
+
+char clantagStorage[MAXPLAYERS+1][32];
+bool restoreClanTags = false;
 
 //Per map settings
 int numSpecialDays = 0;
@@ -270,6 +274,7 @@ public void OnPluginStart()
   cvar_teamdm_tptime = CreateConVar("sm_wardentools_teamdm_tptime", "10.0", "The amount of time before all players are teleported to start beacon (def. 10.0)");
   cvar_teamdm_hidetime = CreateConVar("sm_wardentools_teamdm_hidetime", "60", "Number of seconds everyone has to hide (def. 60)");
   cvar_teamdm_slaytime = CreateConVar("sm_wardentools_teamdm_slaytime", "420.0", "The amount of time before all players are slayed (def. 420.0)");
+  cvar_teamdm_autobeacontime = CreateConVar("sm_wardentools_teamdm_autobeacontime", "300.0", "The amount of time before all players are beaconed and told to actively hunt (def. 300.0)");
   
   //Create array
   micSwapTargets = CreateArray();
@@ -347,6 +352,9 @@ public void OnClientPutInServer(int client)
   isHighlighted[client] = false;
   isShark[client] = false;
   isInfected[client] = false;
+  
+  //Shouldn't have a preserved clan tag
+  clantagStorage[client] = "";
   
   //SDK Hooks
   SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage)
@@ -538,7 +546,7 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
       //Count number of alive players
       int numAlive = 0;
       int lastAliveClient = -1;
-      for (int i = 1; i < MaxClients; ++i) {
+      for (int i = 1; i <= MaxClients; ++i) {
         if (IsClientInGame(i) && IsPlayerAlive(i)) {
           ++numAlive;
           lastAliveClient = i;
@@ -561,7 +569,7 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
         //Find winning team
         int winningTeamCode = COLOUR_DEFAULT;
         
-        for (int i = 1; i < MaxClients; ++i) {
+        for (int i = 1; i <= MaxClients; ++i) {
           if (IsClientInGame(i) && IsPlayerAlive(i)) {
             if (isHighlighted[i]) {
               winningTeamCode = highlightedColour[i];
@@ -634,8 +642,11 @@ public Action Command_WT_Menu(int client, int args)
   SetMenuTitle(MainMenu, mainMenuTitle);
   
   //Add menu items
-  AddMenuItem(MainMenu, "Option_DrawTools", "Draw Tools");
-
+  if (!specialDay || (specialDay && (specialDay == SPECIALDAY_FREEDAY || specialDay == SPECIALDAY_ROUNDMODIFIER || specialDay == SPECIALDAY_CUSTOM)))
+    AddMenuItem(MainMenu, "Option_DrawTools", "Draw Tools");
+  else
+    AddMenuItem(MainMenu, "Option_DrawTools", "Draw Tools", ITEMDRAW_DISABLED);
+  
   //Game tools only enabled on non-special days or on round modifier days
   if (!specialDay || (specialDay && specialDay == SPECIALDAY_ROUNDMODIFIER))  
     AddMenuItem(MainMenu, "Option_GameTools", "Game Tools");
@@ -1360,6 +1371,9 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
       specialDayDamageProtection = true;
       damageProtectionHandle = CreateTimer(GetConVarFloat(cvar_teamdm_tptime) + GetConVarFloat(cvar_teamdm_hidetime), SpecialDay_DamageProtection_End);
       
+      //Create Timer for auto beacons
+      autoBeaconHandle = CreateTimer(GetConVarFloat(cvar_teamdm_autobeacontime) - GetTimeSinceRoundStart(), Timer_AutoBeaconOn);
+      
       //Team Deathmatch Day message
       CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Day", RoundToNearest(GetConVarFloat(cvar_teamdm_tptime)), RoundToNearest(GetConVarFloat(cvar_teamdm_hidetime)));
       
@@ -1394,7 +1408,7 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
       autoBeaconHandle = CreateTimer(GetConVarFloat(cvar_hungergames_autobeacontime) - GetTimeSinceRoundStart(), Timer_AutoBeaconOn);
       
       //Strip all weapons
-      for (int i = 1; i < MaxClients; ++i) {
+      for (int i = 1; i <= MaxClients; ++i) {
         if (IsClientInGame(i) && IsPlayerAlive(i)) {
           //Strip all current weapons from client and give them a knife
           StripWeapons(i);
@@ -1463,7 +1477,7 @@ public int RoundModifierMenuHandler(Menu menu, MenuAction action, int client, in
       roundModifier = ROUNDMODIFIER_FASTSPEED;
       
       //Set fast speed
-      for (int i = 1; i < MaxClients; ++i) {
+      for (int i = 1; i <= MaxClients; ++i) {
         if (IsClientInGame(i) && IsPlayerAlive(i)) {
           SetEntPropFloat(i, Prop_Data, "m_flLaggedMovementValue", GetConVarFloat(cvar_roundmodifier_fastspeed));
           SetEntityGravity(i, GetConVarFloat(cvar_roundmodifier_fastspeed_gravity));
@@ -2042,6 +2056,7 @@ public Action VirusDay_StartInfection(Handle timer)
       if (GetClientTeam(i) == CS_TEAM_T || GetClientTeam(i) == CS_TEAM_CT) {
         PushArrayCell(eligblePlayers, i);
         ++entryCount;
+        setAndPreserveClanTag(i, "[NOT INFECTED]");
       }
     }
   }
@@ -2218,7 +2233,7 @@ public Action Timer_FFADMRoundEnds(Handle timer)
 public Action FFADM_Start(Handle timer)
 {
   //Give players full armour
-  for (int i = 1; i < MaxClients; ++i) {
+  for (int i = 1; i <= MaxClients; ++i) {
     if (IsClientInGame(i) && IsPlayerAlive(i)) {
       GivePlayerItem( i, "item_assaultsuit");
       SetEntProp(i, Prop_Data, "m_ArmorValue", 100, 1);
@@ -2276,7 +2291,7 @@ public Action TeamDM_Start(Handle timer)
   }
   
   //Give players full armour
-  for (int i = 1; i < MaxClients; ++i) {
+  for (int i = 1; i <= MaxClients; ++i) {
     if (IsClientInGame(i) && IsPlayerAlive(i)) {
       GivePlayerItem( i, "item_assaultsuit");
       SetEntProp(i, Prop_Data, "m_ArmorValue", 100, 1);
@@ -2311,26 +2326,36 @@ public Action TeamDM_Start(Handle timer)
     highlightedColour[client] = teamColourCodes[teamCounter];
     
     //Highlight them and print a message
+    char clantag[10];
+    
     if (highlightedColour[client] == COLOUR_RED) {
       SetEntityRenderColor(client, redColour[0], redColour[1], redColour[2], 255);
       CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Started", numTeams, "darkred", "red");
+      Format(clantag, sizeof(clantag), "[RED]");
     }
     else if (highlightedColour[client] == COLOUR_BLUE) {
       SetEntityRenderColor(client, blueColour[0], blueColour[1], blueColour[2], 255);
       CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Started", numTeams, "blue", "blue");
+      Format(clantag, sizeof(clantag), "[BLUE]");
     }
     else if (highlightedColour[client] == COLOUR_GREEN) {
       SetEntityRenderColor(client, greenColour[0], greenColour[1], greenColour[2], 255);
       CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Started", numTeams, "lightgreen", "green");
+      Format(clantag, sizeof(clantag), "[GREEN]");
     }
     else if (highlightedColour[client] == COLOUR_YELLOW) {
       SetEntityRenderColor(client, yellowColour[0], yellowColour[1], yellowColour[2], 255);
       CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Started", numTeams, "olive", "yellow");
+      Format(clantag, sizeof(clantag), "[YELLOW]");
     }
     else if (highlightedColour[client] == COLOUR_BLACK) {
       SetEntityRenderColor(client, blackColour[0], blackColour[1], blackColour[2], 255);
       CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Started", numTeams, "default", "black");
+      Format(clantag, sizeof(clantag), "[BLACK]");
     }
+    
+    //Set clan tag and preserve original clan tag
+    setAndPreserveClanTag(client, clantag);
     
     ++teamCounter;
     
@@ -2380,8 +2405,8 @@ public Action Timer_TeamDMShowHud(Handle timer)
           }
         }
       }
-    
-      char team[32];
+      
+      char team[10];
       char teamColour[10];
       
       if (highlightedColour[client] == COLOUR_RED) {
@@ -2443,7 +2468,7 @@ public Action HungerGames_Start(Handle timer)
   char secondaryWeapons[10][] = {"weapon_cz75a","weapon_deagle","weapon_fiveseven","weapon_elite","weapon_glock","weapon_hkp2000","weapon_p250","weapon_revolver","weapon_usp_silencer","weapon_tec9"};
   char grenades[6][] = {"weapon_decoy","weapon_flashbang","weapon_hegrenade","weapon_incgrenade","weapon_molotov","weapon_smokegrenade"};
   
-  for (int i = 1; i < MaxClients; ++i) {
+  for (int i = 1; i <= MaxClients; ++i) {
     if (IsClientInGame(i) && IsPlayerAlive(i)) {
       //Strip all current weapons from client
       StripWeapons(i);
@@ -2588,7 +2613,16 @@ void Reset_Vars()
     
     //Reset infected
     isInfected[i] = false;
+    
+    //Reset clan tag to what was stored
+    if (restoreClanTags) {
+      CS_SetClientClanTag(i, clantagStorage[i]);
+      clantagStorage[i] = ""; //reset storage
+    }
   }
+  
+  //After all clan tags have been restored, disable bool
+  restoreClanTags = false;
   
   //Disable Friendly Fire
   SetConVarBool(FindConVar("mp_friendlyfire"), false);
@@ -2601,10 +2635,20 @@ void Reset_Vars()
     SetConVarBool(priorityToggle, false);
   }
   
-  //Enable LR if it is disabled
+  //Enable LR if disabled
   ConVar hostiesLR = FindConVar("sm_hosties_lr");
   if (hostiesLR != null)
-    SetConVarInt(hostiesLR, 1);
+    SetConVarInt(hostiesLR, 1);  
+    
+  //Enable colouring of rebellers
+  ConVar rebelColour = FindConVar("sm_hosties_rebel_color");
+  if (rebelColour != null)
+    SetConVarInt(rebelColour, 1);
+    
+  //Enable warden claiming
+  ConVar wardenClaim = FindConVar("sm_warden_enabled");
+  if (wardenClaim != null)
+    SetConVarInt(wardenClaim, 1);
 }
 
 //Return time since new round started
@@ -2627,6 +2671,16 @@ void setSpecialDay(int specialDayType = SPECIALDAY_NONE)
     ConVar hostiesLR = FindConVar("sm_hosties_lr");
     if (hostiesLR != null)
       SetConVarInt(hostiesLR, 0);  
+      
+    //Disable colouring of rebellers
+    ConVar rebelColour = FindConVar("sm_hosties_rebel_color");
+    if (rebelColour != null)
+      SetConVarInt(rebelColour, 0);
+      
+    //Disable warden claiming
+    ConVar wardenClaim = FindConVar("sm_warden_enabled");
+    if (wardenClaim != null)
+      SetConVarInt(wardenClaim, 0);
   }
   
   ++numSpecialDays;
@@ -3001,6 +3055,9 @@ void VirusDay_InfectClient(int client, bool printMessage)
   //Set blood overlay
   ShowOverlayToClient(client, "overlays/invex/infectedblood.vmt");
   
+  //Set clan tag
+  CS_SetClientClanTag(client, "[INFECTED]");
+  
   //Set health
   SetEntProp(client, Prop_Data, "m_iHealth", GetConVarInt(cvar_virusday_infectedhealth));
   
@@ -3171,6 +3228,17 @@ void TeleportPlayersToWarden(int warden, float tptime, char[] specialDayName, Ti
   //Draw Beam
   TE_SetupBeamRingPoint(warden_origin, 75.0, 75.5, g_BeamSprite, g_HaloSprite, 0, 0, 10.0, 10.0, 0.0, currentColour, 0, 0);
   TE_SendToAll();
+}
+
+//Sets a new clan tag while preserving the previous clan tag
+void setAndPreserveClanTag(int client, char[] newClanTag)
+{
+  //Preserve current clan tag
+  CS_GetClientClanTag(client, clantagStorage[client], sizeof(clantagStorage[]));
+  restoreClanTags = true;
+  
+  //Set clan tag
+  CS_SetClientClanTag(client, newClanTag);
 }
 
 

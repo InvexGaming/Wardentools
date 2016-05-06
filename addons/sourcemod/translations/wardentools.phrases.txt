@@ -105,7 +105,7 @@
   "SpecialDay - Virus Day HUD"
   {
     "#format"		"{1:s},{2:s},{3:d},{4:d}"
-    "en"			"<font size='16'>Your Status: <font color='{1}'>{2}</font>\n\nInfected: <font color='#FF0033'>{3}</font>\nNon Infected: <font color='#336600'>{4}</font></font>"
+    "en"			"<font size='16'>Your Status: <font color='{1}'>{2}</font>\n\nInfected: <font color='#FF0033'>{3}</font>\nNot Infected: <font color='#336600'>{4}</font></font>"
   }
   "SpecialDay - More People Needed"
   {
