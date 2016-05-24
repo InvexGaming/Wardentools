@@ -190,6 +190,10 @@
   {
     "en" "The {green}Hunger Games{default} day has now started! You may now damage other players. You have also been given random health, primary gun, secondary gun and a single grenade!"
   }
+  "SpecialDay - Command Not Allowed"
+  {
+    "en" "You cannot use this command during a special day."
+  }
   "Shark Removed"
   {
     "#format"		"{1:N}"

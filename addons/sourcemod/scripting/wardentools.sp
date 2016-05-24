@@ -10,7 +10,7 @@
 UserMsg g_FadeUserMsgId; //For Blind
 
 //Defines
-#define VERSION "1.23"
+#define VERSION "1.24"
 #define CHAT_TAG_PREFIX "[{pink}Warden Tools{default}] "
 
 #define COLOUR_DEFAULT 0
@@ -1672,7 +1672,15 @@ public int SharkMenuHandler(Menu menu, MenuAction action, int client, int param2
 //Quick place beams using bind
 public Action PlaceBeamAction(int client, int args)
 {
-  PlaceBeam(client);
+  //Disallow on special days
+  if (!specialDay || (specialDay && (specialDay == SPECIALDAY_FREEDAY || specialDay == SPECIALDAY_ROUNDMODIFIER || specialDay == SPECIALDAY_CUSTOM))) {
+    PlaceBeam(client);
+  }
+  else {
+    CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Command Not Allowed");
+  }
+  
+  return Plugin_Handled;
 }
 
 void PlaceBeam(int client)
@@ -2727,8 +2735,15 @@ public Action PlaceLaserAction(int client, int args) {
     return Plugin_Handled;
   }
   
-  TraceEye(client, LastLaser[client]);
-  LaserEnabled[client] = true;
+  //Disallow on special days
+  if (!specialDay || (specialDay && (specialDay == SPECIALDAY_FREEDAY || specialDay == SPECIALDAY_ROUNDMODIFIER || specialDay == SPECIALDAY_CUSTOM))) {
+    TraceEye(client, LastLaser[client]);
+    LaserEnabled[client] = true;  
+  }
+  else {
+    CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Command Not Allowed");
+  }
+  
   return Plugin_Handled;
 }
 
