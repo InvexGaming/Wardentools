@@ -10,7 +10,7 @@
 UserMsg g_FadeUserMsgId; //For Blind
 
 //Defines
-#define VERSION "1.24"
+#define VERSION "1.25"
 #define CHAT_TAG_PREFIX "[{pink}Warden Tools{default}] "
 
 #define COLOUR_DEFAULT 0
@@ -60,6 +60,11 @@ UserMsg g_FadeUserMsgId; //For Blind
 #define SHORT_7 "invex_gaming/jb_wardentools/short_nathan_knew.mp3"
 
 #define HIDE_RADAR_CSGO 1<<12
+
+//For each player, randomly give them: health, primary weapon, secondary weapon, and grenades
+char primaryWeapons[23][] = {"weapon_ak47","weapon_aug","weapon_awp","weapon_bizon","weapon_famas","weapon_g3sg1","weapon_galilar","weapon_m249","weapon_m4a1","weapon_m4a1_silencer","weapon_mac10","weapon_mag7","weapon_mp7","weapon_mp9","weapon_negev","weapon_nova","weapon_p90","weapon_sawedoff","weapon_scar20","weapon_sg556","weapon_ssg08","weapon_ump45","weapon_xm1014"};
+char secondaryWeapons[10][] = {"weapon_cz75a","weapon_deagle","weapon_fiveseven","weapon_elite","weapon_glock","weapon_hkp2000","weapon_p250","weapon_revolver","weapon_usp_silencer","weapon_tec9"};
+char grenades[6][] = {"weapon_decoy","weapon_flashbang","weapon_hegrenade","weapon_incgrenade","weapon_molotov","weapon_smokegrenade"};
 
 //Materials
 int g_BeamSprite;
@@ -169,12 +174,19 @@ Handle freeforallStartTimer = null;
 bool isFFARoundStalemate = false;
 bool isPastHideTime = false;
 
+//TDM special day globals
+int tdm_teamColourCodes[5] = { COLOUR_RED, COLOUR_BLUE, COLOUR_GREEN, COLOUR_YELLOW, COLOUR_BLACK};
+int tdm_teamCounter = 0;
+int tdm_numTeams = 0;
+
 Handle hnsPrisonersWinHandle = null;
 
 Handle autoBeaconHandle = null;
 
 char clantagStorage[MAXPLAYERS+1][32];
 bool restoreClanTags = false;
+
+int specialDayStartTime = -1;
 
 //Per map settings
 int numSpecialDays = 0;
@@ -214,7 +226,7 @@ public void OnPluginStart()
   newRoundTimeElapsed = GetTime();
   
   //Hooks
-  HookEvent("round_start", Event_RoundStart, EventHookMode_Pre);
+  HookEvent("round_prestart", Event_RoundPreStart, EventHookMode_Post);
   HookEvent("player_death", Event_PlayerDeath, EventHookMode_Pre);
   HookEvent("player_spawn", Event_PlayerSpawn, EventHookMode_Post);
 
@@ -364,6 +376,12 @@ public void OnClientPutInServer(int client)
 //Called when a player takes damage
 public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3])
 {
+  //On special days, stop drowning during freeze and fall damage from world
+  if (specialDay && specialDayDamageProtection && attacker == 0) {
+    if (damagetype & (DMG_DROWN | DMG_DROWNRECOVER | DMG_FALL) > 0)
+      return Plugin_Handled;
+  }
+  
   //Ignore invalid entities
   if (!(victim > 0 && victim <= MaxClients) || !(attacker > 0 && attacker <= MaxClients)) {
     return Plugin_Continue;
@@ -428,9 +446,8 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 /*********************************
  *  Events
  *********************************/
-//Round start
-public void Event_RoundStart(Handle event, const char[] name, bool dontBroadcast)
-{
+//Round pre start
+public void Event_RoundPreStart(Handle event, const char[] name, bool dontBroadcast) {
   //Reset vars
   Reset_Vars();
  
@@ -602,10 +619,39 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
 //Player spawn hook
 public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
-  if (specialDay && specialDay == SPECIALDAY_ROUNDMODIFIER && roundModifier == ROUNDMODIFIER_FASTSPEED) {
-    int client = GetClientOfUserId(event.GetInt("userid"));
-    SetEntPropFloat(client, Prop_Data, "m_flLaggedMovementValue", GetConVarFloat(cvar_roundmodifier_fastspeed));
-    SetEntityGravity(client, GetConVarFloat(cvar_roundmodifier_fastspeed_gravity));
+  int client = GetClientOfUserId(event.GetInt("userid"));
+  
+  if (IsClientConnected(client) && IsClientInGame(client) && IsPlayerAlive(client)) {
+    if (specialDay && specialDay == SPECIALDAY_ROUNDMODIFIER && roundModifier == ROUNDMODIFIER_FASTSPEED) {
+      SetEntPropFloat(client, Prop_Data, "m_flLaggedMovementValue", GetConVarFloat(cvar_roundmodifier_fastspeed));
+      SetEntityGravity(client, GetConVarFloat(cvar_roundmodifier_fastspeed_gravity));
+    }
+    
+    //Late special day loads
+    if (specialDay) {
+      if (specialDay == SPECIALDAY_ROUNDMODIFIER && roundModifier == ROUNDMODIFIER_FASTSPEED) {
+        SetEntPropFloat(client, Prop_Data, "m_flLaggedMovementValue", GetConVarFloat(cvar_roundmodifier_fastspeed));
+        SetEntityGravity(client, GetConVarFloat(cvar_roundmodifier_fastspeed_gravity));
+      }
+      else if (specialDay == SPECIALDAY_HNS)
+        SpecialDay_ApplyEffects_HNS(client);
+      else if (specialDay == SPECIALDAY_VIRUSDAY) {
+        CreateTimer(0.0, RemoveRadar, client); //radar removal is only effect
+        
+        if (isInfected[client])
+          VirusDay_InfectClient(client, false);
+      }
+      else if (specialDay == SPECIALDAY_FFADM) {
+        SpecialDay_ApplyEffects_FFADM(client);
+      }
+      else if (specialDay == SPECIALDAY_TEAMDM) {
+        SpecialDay_ApplyEffects_TEAMDM(client);
+      }
+      else if (specialDay == SPECIALDAY_HUNGERGAMES) {
+        SpecialDay_ApplyEffects_HUNGERGAMES(client);
+      }
+    }
+  
   }
 }
 
@@ -1190,43 +1236,10 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
       
       //Set players health
       for (int i = 1; i <= MaxClients ; ++i) {
-        if (IsClientInGame(i) && IsPlayerAlive(i)) {
-          if (GetClientTeam(i) == CS_TEAM_CT) {
-            SetEntProp(i, Prop_Data, "m_iHealth", GetConVarInt(cvar_hns_cthealth));
-            
-            //Blind CT's during hide time
-            Handle fadePack;
-            CreateDataTimer(0.0, FadeClient, fadePack);
-            WritePackCell(fadePack, i);
-            WritePackCell(fadePack, 0);
-            WritePackCell(fadePack, 0);
-            WritePackCell(fadePack, 0);
-            WritePackCell(fadePack, 255);
-            
-            //Unblind after freeze time
-            Handle fadePack2;
-            CreateDataTimer(GetConVarFloat(cvar_hns_ctfreezetime), UnfadeClient, fadePack2);
-            WritePackCell(fadePack2, i);
-            WritePackCell(fadePack2, 0);
-            WritePackCell(fadePack2, 0);
-            WritePackCell(fadePack2, 0);
-            WritePackCell(fadePack2, 0);
-          }
-          else if (GetClientTeam(i) == CS_TEAM_T) {
-            SetEntProp(i, Prop_Data, "m_iHealth", GetConVarInt(cvar_hns_thealth));
-          }
+        if (IsClientConnected(i) && IsClientInGame(i) && IsPlayerAlive(i)) {
+          SpecialDay_ApplyEffects_HNS(i);
         }
       }
-      
-      //Remove radar
-      for (int i = 1; i <= MaxClients; ++i) {
-        if (IsClientInGame(i) && IsPlayerAlive(i)) {
-          RemoveRadar(i);
-        }
-      }
-      
-      //Freeze CT's
-      ServerCommand("sm_freeze @ct %d", GetConVarInt(cvar_hns_ctfreezetime));
 
       //Print start message
       CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - HNS", GetConVarInt(cvar_hns_ctfreezetime), RoundToNearest(GetConVarFloat(cvar_hns_tptime)));
@@ -1277,7 +1290,7 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
       //Remove radar
       for (int i = 1; i <= MaxClients; ++i) {
         if (IsClientInGame(i) && IsPlayerAlive(i)) {
-          RemoveRadar(i);
+          CreateTimer(0.0, RemoveRadar, i);
         }
       }
       
@@ -1303,10 +1316,10 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
     else if (StrEqual(info, "Option_FFADM")) {
       setSpecialDay(SPECIALDAY_FFADM);
       
-      //Remove radar
+      //Apply Effects
       for (int i = 1; i <= MaxClients; ++i) {
-        if (IsClientInGame(i) && IsPlayerAlive(i)) {
-          RemoveRadar(i);
+        if (IsClientConnected(i) && IsClientInGame(i) && IsPlayerAlive(i)) {
+          SpecialDay_ApplyEffects_FFADM(i);
         }
       }
       
@@ -1356,7 +1369,7 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
       //Remove radar
       for (int i = 1; i <= MaxClients; ++i) {
         if (IsClientInGame(i) && IsPlayerAlive(i)) {
-          RemoveRadar(i);
+          CreateTimer(0.0, RemoveRadar, i);
         }
       }
       
@@ -1388,8 +1401,8 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
       
       //Remove radar
       for (int i = 1; i <= MaxClients; ++i) {
-        if (IsClientInGame(i) && IsPlayerAlive(i)) {
-          RemoveRadar(i);
+        if (IsClientConnected(i) && IsClientInGame(i) && IsPlayerAlive(i)) {
+          SpecialDay_ApplyEffects_HUNGERGAMES(i);
         }
       }
       
@@ -1407,15 +1420,6 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
       //Create Timer for auto beacons
       autoBeaconHandle = CreateTimer(GetConVarFloat(cvar_hungergames_autobeacontime) - GetTimeSinceRoundStart(), Timer_AutoBeaconOn);
       
-      //Strip all weapons
-      for (int i = 1; i <= MaxClients; ++i) {
-        if (IsClientInGame(i) && IsPlayerAlive(i)) {
-          //Strip all current weapons from client and give them a knife
-          StripWeapons(i);
-          GivePlayerItem(i, "weapon_knife");
-        }
-      }
-      
       //Hunger Games Day message
       CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Hunger Games Day", RoundToNearest(GetConVarFloat(cvar_hungergames_tptime)), RoundToNearest(GetConVarFloat(cvar_hungergames_hidetime)));
       
@@ -1425,7 +1429,6 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
       //Teleport all players to warden beam
       TeleportPlayersToWarden(client, GetConVarFloat(cvar_hungergames_tptime), "Hunger Games", Teleport_Start_All, TELEPORTTYPE_ALL);
     }
-    
     else if (StrEqual(info, "Option_CustomDay")) {
       //Custom day
       setSpecialDay(SPECIALDAY_CUSTOM);
@@ -2240,14 +2243,6 @@ public Action Timer_FFADMRoundEnds(Handle timer)
 //Timer called once FFADM day starts
 public Action FFADM_Start(Handle timer)
 {
-  //Give players full armour
-  for (int i = 1; i <= MaxClients; ++i) {
-    if (IsClientInGame(i) && IsPlayerAlive(i)) {
-      GivePlayerItem( i, "item_assaultsuit");
-      SetEntProp(i, Prop_Data, "m_ArmorValue", 100, 1);
-    }
-  }
-
   CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - FFADM Started");
   
   freeforallStartTimer = null;
@@ -2277,6 +2272,8 @@ public Action Timer_TeamDMRoundEnds(Handle timer)
 //Timer called once TeamDM day starts
 public Action TeamDM_Start(Handle timer)
 {
+  isPastHideTime = true; //hide time is over
+  
   //Check that there are enough players to play
   int entryCount = 0;
   ArrayList eligblePlayers = CreateArray(MaxClients+1);
@@ -2307,19 +2304,18 @@ public Action TeamDM_Start(Handle timer)
   }
 
   //Pick teams and highlight players
-  int numTeams = 0;
+  tdm_numTeams = 0;
   
   if (entryCount <= 10)
-    numTeams = 2;
+    tdm_numTeams = 2;
   else if (entryCount <= 20)
-    numTeams = 3;
+    tdm_numTeams = 3;
   else if (entryCount <= 30)
-    numTeams = 4;
+    tdm_numTeams = 4;
   else if (entryCount <= 40)
-    numTeams = 5;
+    tdm_numTeams = 5;
   
-  int teamColourCodes[5] = { COLOUR_RED, COLOUR_BLUE, COLOUR_GREEN, COLOUR_YELLOW, COLOUR_BLACK};
-  int teamCounter = 0;
+  tdm_teamCounter = 0;
   int numAlive = entryCount;  //needed for loop
   
   //Assign team to each eligble player
@@ -2329,50 +2325,9 @@ public Action TeamDM_Start(Handle timer)
     removeClientFromArray(eligblePlayers, client);
     entryCount = GetArraySize(eligblePlayers)
     
-    //Here we have a random client, assign them to a random team
-    isHighlighted[client] = true;
-    highlightedColour[client] = teamColourCodes[teamCounter];
-    
-    //Highlight them and print a message
-    char clantag[10];
-    
-    if (highlightedColour[client] == COLOUR_RED) {
-      SetEntityRenderColor(client, redColour[0], redColour[1], redColour[2], 255);
-      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Started", numTeams, "darkred", "red");
-      Format(clantag, sizeof(clantag), "[RED]");
-    }
-    else if (highlightedColour[client] == COLOUR_BLUE) {
-      SetEntityRenderColor(client, blueColour[0], blueColour[1], blueColour[2], 255);
-      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Started", numTeams, "blue", "blue");
-      Format(clantag, sizeof(clantag), "[BLUE]");
-    }
-    else if (highlightedColour[client] == COLOUR_GREEN) {
-      SetEntityRenderColor(client, greenColour[0], greenColour[1], greenColour[2], 255);
-      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Started", numTeams, "lightgreen", "green");
-      Format(clantag, sizeof(clantag), "[GREEN]");
-    }
-    else if (highlightedColour[client] == COLOUR_YELLOW) {
-      SetEntityRenderColor(client, yellowColour[0], yellowColour[1], yellowColour[2], 255);
-      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Started", numTeams, "olive", "yellow");
-      Format(clantag, sizeof(clantag), "[YELLOW]");
-    }
-    else if (highlightedColour[client] == COLOUR_BLACK) {
-      SetEntityRenderColor(client, blackColour[0], blackColour[1], blackColour[2], 255);
-      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Started", numTeams, "default", "black");
-      Format(clantag, sizeof(clantag), "[BLACK]");
-    }
-    
-    //Set clan tag and preserve original clan tag
-    setAndPreserveClanTag(client, clantag);
-    
-    ++teamCounter;
-    
-    //Reset counter if we reach last team
-    if (teamCounter == numTeams)
-      teamCounter = 0;
+    //Highlight, assign team and colour
+    SpecialDay_ApplyEffects_TEAMDM(client);
   }
-  
-  isPastHideTime = true; //hide time is over
   
   //Enable hud for all
   CreateTimer(0.5, Timer_TeamDMShowHud);
@@ -2471,43 +2426,13 @@ public Action Timer_HungerGamesRoundEnds(Handle timer)
 //Timer called once hunger games start
 public Action HungerGames_Start(Handle timer)
 {
-  //For each player, randomly give them: health, primary weapon, secondary weapon, and grenades
-  char primaryWeapons[23][] = {"weapon_ak47","weapon_aug","weapon_awp","weapon_bizon","weapon_famas","weapon_g3sg1","weapon_galilar","weapon_m249","weapon_m4a1","weapon_m4a1_silencer","weapon_mac10","weapon_mag7","weapon_mp7","weapon_mp9","weapon_negev","weapon_nova","weapon_p90","weapon_sawedoff","weapon_scar20","weapon_sg556","weapon_ssg08","weapon_ump45","weapon_xm1014"};
-  char secondaryWeapons[10][] = {"weapon_cz75a","weapon_deagle","weapon_fiveseven","weapon_elite","weapon_glock","weapon_hkp2000","weapon_p250","weapon_revolver","weapon_usp_silencer","weapon_tec9"};
-  char grenades[6][] = {"weapon_decoy","weapon_flashbang","weapon_hegrenade","weapon_incgrenade","weapon_molotov","weapon_smokegrenade"};
-  
+  isPastHideTime = true; //no longer hide time
+
   for (int i = 1; i <= MaxClients; ++i) {
-    if (IsClientInGame(i) && IsPlayerAlive(i)) {
-      //Strip all current weapons from client
-      StripWeapons(i);
-      
-      //Give them knife
-      GivePlayerItem(i, "weapon_knife");
-      
-      //Give player random health
-      float randomHealth = GetRandomFloat(GetConVarFloat(cvar_hungergames_min_random_health), GetConVarFloat(cvar_hungergames_max_random_health));
-      SetEntProp(i, Prop_Data, "m_iHealth", RoundToFloor(randomHealth));
-      
-      //Give player full armour
-      GivePlayerItem( i, "item_assaultsuit");
-      SetEntProp(i, Prop_Data, "m_ArmorValue", 100, 1);
-      
-      //Give player random primary
-      int randNum = GetRandomInt(0, sizeof(primaryWeapons) - 1);
-      GivePlayerItem(i, primaryWeapons[randNum]);
-        
-      //Give player random secondary
-      randNum = GetRandomInt(0, sizeof(secondaryWeapons) - 1);
-      GivePlayerItem(i, secondaryWeapons[randNum]);
-      
-      //Give player random grenades
-      randNum = GetRandomInt(0, sizeof(grenades) - 1);
-      GivePlayerItem(i, grenades[randNum]);
-      
+    if (IsClientConnected(i) && IsClientInGame(i) && IsPlayerAlive(i)) {
+      SpecialDay_ApplyEffects_HUNGERGAMES(i);
     }
   }
-
-  isPastHideTime = true; //no longer hide time
   
   CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Hunger Games Started");
   
@@ -2523,6 +2448,140 @@ public Action Timer_AutoBeaconOn(Handle timer)
   ServerCommand("sm_msay All players must now actively hunt other players.");
   autoBeaconHandle = null;
 }
+
+//Apply special day effects
+void SpecialDay_ApplyEffects_HNS(int client)
+{
+  CreateTimer(0.0, RemoveRadar, client);
+
+  if (GetClientTeam(client) == CS_TEAM_CT) {
+    SetEntProp(client, Prop_Data, "m_iHealth", GetConVarInt(cvar_hns_cthealth));
+    
+    int timeRemaining = GetConVarInt(cvar_hns_ctfreezetime) - (GetTime() - specialDayStartTime);
+    
+    //Apply these effects in 'hide time' only
+    if (timeRemaining > 0) {
+    ServerCommand("sm_freeze #%d %d", GetClientUserId(client), timeRemaining);
+    
+    //Blind CT's during hide time
+    isBlind[client] = true;
+    
+    Handle fadePack;
+    CreateDataTimer(0.0, FadeClient, fadePack);
+    WritePackCell(fadePack, client);
+    WritePackCell(fadePack, 0);
+    WritePackCell(fadePack, 0);
+    WritePackCell(fadePack, 0);
+    WritePackCell(fadePack, 255);
+    
+    //Unblind after freeze time
+    Handle fadePack2;
+    CreateDataTimer(float(timeRemaining), UnfadeClient, fadePack2);
+    WritePackCell(fadePack2, client);
+    WritePackCell(fadePack2, 0);
+    WritePackCell(fadePack2, 0);
+    WritePackCell(fadePack2, 0);
+    WritePackCell(fadePack2, 0);
+    
+    }
+  }
+  else if (GetClientTeam(client) == CS_TEAM_T) {
+    SetEntProp(client, Prop_Data, "m_iHealth", GetConVarInt(cvar_hns_thealth));
+  }
+}
+
+//Apply special day effects
+void SpecialDay_ApplyEffects_FFADM(int client)
+{
+  CreateTimer(0.0, RemoveRadar, client);
+  GivePlayerItem(client, "item_assaultsuit");
+  SetEntProp(client, Prop_Data, "m_ArmorValue", 100, 1);
+}
+
+//Apply special day effects
+void SpecialDay_ApplyEffects_TEAMDM(int client)
+{
+  CreateTimer(0.0, RemoveRadar, client);
+  GivePlayerItem(client, "item_assaultsuit");
+  SetEntProp(client, Prop_Data, "m_ArmorValue", 100, 1);
+  
+  //TDM started, assign random team to this player
+  if (isPastHideTime) {
+    isHighlighted[client] = true;
+    highlightedColour[client] = tdm_teamColourCodes[tdm_teamCounter];
+    
+    //Highlight them and print a message
+    char clantag[10];
+    
+    if (highlightedColour[client] == COLOUR_RED) {
+      SetEntityRenderColor(client, redColour[0], redColour[1], redColour[2], 255);
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Started", tdm_numTeams, "darkred", "red");
+      Format(clantag, sizeof(clantag), "[RED]");
+    }
+    else if (highlightedColour[client] == COLOUR_BLUE) {
+      SetEntityRenderColor(client, blueColour[0], blueColour[1], blueColour[2], 255);
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Started", tdm_numTeams, "blue", "blue");
+      Format(clantag, sizeof(clantag), "[BLUE]");
+    }
+    else if (highlightedColour[client] == COLOUR_GREEN) {
+      SetEntityRenderColor(client, greenColour[0], greenColour[1], greenColour[2], 255);
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Started", tdm_numTeams, "lightgreen", "green");
+      Format(clantag, sizeof(clantag), "[GREEN]");
+    }
+    else if (highlightedColour[client] == COLOUR_YELLOW) {
+      SetEntityRenderColor(client, yellowColour[0], yellowColour[1], yellowColour[2], 255);
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Started", tdm_numTeams, "olive", "yellow");
+      Format(clantag, sizeof(clantag), "[YELLOW]");
+    }
+    else if (highlightedColour[client] == COLOUR_BLACK) {
+      SetEntityRenderColor(client, blackColour[0], blackColour[1], blackColour[2], 255);
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Started", tdm_numTeams, "default", "black");
+      Format(clantag, sizeof(clantag), "[BLACK]");
+    }
+    
+    //Set clan tag and preserve original clan tag
+    setAndPreserveClanTag(client, clantag);
+    
+    ++tdm_teamCounter;
+    
+    //Reset counter if we reach last team
+    if (tdm_teamCounter == tdm_numTeams)
+      tdm_teamCounter = 0;
+  }
+}
+
+//Apply special day effects
+void SpecialDay_ApplyEffects_HUNGERGAMES(int client)
+{
+  CreateTimer(0.0, RemoveRadar, client);
+  
+  //Strip all current weapons from client and give them a knife
+  StripWeapons(client);
+  GivePlayerItem(client, "weapon_knife");
+  
+  if (isPastHideTime) {
+    //Give player random health
+    float randomHealth = GetRandomFloat(GetConVarFloat(cvar_hungergames_min_random_health), GetConVarFloat(cvar_hungergames_max_random_health));
+    SetEntProp(client, Prop_Data, "m_iHealth", RoundToFloor(randomHealth));
+    
+    //Give player full armour
+    GivePlayerItem(client, "item_assaultsuit");
+    SetEntProp(client, Prop_Data, "m_ArmorValue", 100, 1);
+    
+    //Give player random primary
+    int randNum = GetRandomInt(0, sizeof(primaryWeapons) - 1);
+    GivePlayerItem(client, primaryWeapons[randNum]);
+      
+    //Give player random secondary
+    randNum = GetRandomInt(0, sizeof(secondaryWeapons) - 1);
+    GivePlayerItem(client, secondaryWeapons[randNum]);
+    
+    //Give player random grenades
+    randNum = GetRandomInt(0, sizeof(grenades) - 1);
+    GivePlayerItem(client, grenades[randNum]);
+  }
+}
+
 
 /*********************************
  *  Helper Functions
@@ -2564,6 +2623,7 @@ void Reset_Vars()
   isPastCureFoundTime = false;
   isFFARoundStalemate = false
   isPastHideTime = false;
+  specialDayStartTime = -1;
   
   SetConVarInt(FindConVar("sv_gravity"), orig_sv_gravity);
   SetConVarInt(FindConVar("sv_maxspeed"), orig_sv_maxspeed);
@@ -2691,6 +2751,9 @@ void setSpecialDay(int specialDayType = SPECIALDAY_NONE)
       SetConVarInt(wardenClaim, 0);
   }
   
+  //Store start time
+  specialDayStartTime = GetTime();
+  
   ++numSpecialDays;
 }
 
@@ -2779,6 +2842,9 @@ public Action FadeClient(Handle timer, Handle pack)
   int targets[2];
   targets[0] = ReadPackCell(pack);
   
+  if (!IsClientConnected(targets[0]) || IsFakeClient(targets[0]))
+    return Plugin_Handled;
+  
   int color[4];
   color[0] = ReadPackCell(pack);
   color[1] = ReadPackCell(pack);
@@ -2823,6 +2889,10 @@ public Action UnfadeClient(Handle timer, Handle pack)
   
   int targets[2];
   targets[0] = ReadPackCell(pack);
+  
+  if (!IsClientConnected(targets[0]) || IsFakeClient(targets[0]))
+    return Plugin_Handled;
+  
   int color[4];
   color[0] = ReadPackCell(pack);
   color[1] = ReadPackCell(pack);
@@ -3137,7 +3207,7 @@ public Action RemoveOverlay(Handle timer, int client)
   ShowOverlayToClient(client, "");
 }
 
-void RemoveRadar(int client) 
+public Action RemoveRadar(Handle timer, int client)
 {
   if(client == 0)
     return;
@@ -3249,7 +3319,9 @@ void TeleportPlayersToWarden(int warden, float tptime, char[] specialDayName, Ti
 void setAndPreserveClanTag(int client, char[] newClanTag)
 {
   //Preserve current clan tag
-  CS_GetClientClanTag(client, clantagStorage[client], sizeof(clantagStorage[]));
+  if (strlen(clantagStorage[client]) == 0)  //only if it hasn't already been preserved (due to multi respawns)
+    CS_GetClientClanTag(client, clantagStorage[client], sizeof(clantagStorage[]));
+  
   restoreClanTags = true;
   
   //Set clan tag
