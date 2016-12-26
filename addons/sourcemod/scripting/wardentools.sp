@@ -10,7 +10,7 @@
 UserMsg g_FadeUserMsgId; //For Blind
 
 //Defines
-#define VERSION "1.25"
+#define VERSION "1.26"
 #define CHAT_TAG_PREFIX "[{pink}Warden Tools{default}] "
 
 #define COLOUR_DEFAULT 0
@@ -152,6 +152,7 @@ int highlightedColour[MAXPLAYERS+1] = COLOUR_DEFAULT;
 bool isInHighlightTeamDM = false;
 
 int specialDay = SPECIALDAY_NONE;
+bool previousSpecialDay = false; //consecutive specialdays
 
 int roundModifier = ROUNDMODIFIER_NONE;
 
@@ -217,7 +218,7 @@ public void OnPluginStart()
   LoadTranslations("wardentools.phrases");
   
   //Flags
-  CreateConVar("sm_wardentools_version", VERSION, "", FCVAR_PLUGIN|FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY|FCVAR_CHEAT|FCVAR_DONTRECORD);
+  CreateConVar("sm_wardentools_version", VERSION, "", FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY|FCVAR_CHEAT|FCVAR_DONTRECORD);
   
   RegConsoleCmd("sm_wt", Command_WT_Menu, "Bring up warden tools menu");
   RegConsoleCmd("sm_wardentools", Command_WT_Menu, "Bring up warden tools menu");
@@ -707,6 +708,8 @@ public Action Command_WT_Menu(int client, int args)
     AddMenuItem(MainMenu, "Option_SpecialDay", specialDayText, ITEMDRAW_DISABLED);
   else if (GetTimeSinceRoundStart() >= GetConVarInt(cvar_specialday_starttime))
     AddMenuItem(MainMenu, "Option_SpecialDay", specialDayText, ITEMDRAW_DISABLED);
+  else if (previousSpecialDay)
+    AddMenuItem(MainMenu, "Option_SpecialDay", specialDayText, ITEMDRAW_DISABLED);
   else
     AddMenuItem(MainMenu, "Option_SpecialDay", specialDayText);
    
@@ -801,11 +804,12 @@ public int MainMenuHandler(Menu menu, MenuAction action, int client, int param2)
       SetMenuTitle(GameMenu, "Select an effect");
       
       //Add menu items
-      AddMenuItem(GameMenu, "Option_Slap", "Slap Prisoners");
+      AddMenuItem(GameMenu, "Option_SetHealth", "Reset T Health (100hp)");
       AddMenuItem(GameMenu, "Option_Freezebomb", "Freezebomb Prisoners (Toggle)");
       AddMenuItem(GameMenu, "Option_Blind", "Blind Prisoners (Toggle)");
       AddMenuItem(GameMenu, "Option_CTShark", "Make CT Shark (30 seconds)");
       AddMenuItem(GameMenu, "Option_HighlightedDM", "Highlighted Team Deathmatch (Toggle)");
+      AddMenuItem(GameMenu, "Option_Slap", "Slap Prisoners")
       
       DisplayMenu(GameMenu, client, MENU_TIME_FOREVER);
     }
@@ -1025,6 +1029,18 @@ public int GameMenuHandler(Menu menu, MenuAction action, int client, int param2)
       turnOnTeamDM();
       
       DisplayMenuAtItem(GameMenu, client, 0, 0);
+    }
+    else if (StrEqual(info, "Option_SetHealth")) {
+      //Show message to server
+      CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "Gametools - Set T Health", 100);
+    
+      for (int i = 1; i <= MaxClients ; ++i) {
+        if (IsClientInGame(i) && IsPlayerAlive(i)) {
+          if (GetClientTeam(i) == CS_TEAM_T) {
+            SetEntProp(i, Prop_Data, "m_iHealth", 100);
+          }
+        }
+      }
     }
   }
   else if (action == MenuAction_Cancel)
@@ -2605,6 +2621,10 @@ void Reset_Vars()
   if (freeforallStartTimer != null) delete freeforallStartTimer;
   if (autoBeaconHandle != null) delete autoBeaconHandle;
   
+  //If previous round was special day, reset previousSpecialDay
+  previousSpecialDay = (specialDay != SPECIALDAY_NONE);
+  specialDay = SPECIALDAY_NONE;
+  
   //Reset settings
   currentBeamsUsed = 0;
   curDuration = 20.0;
@@ -2613,7 +2633,6 @@ void Reset_Vars()
   freezeTimer = null; 
   currentColour = redColour;
   currentColourCode = COLOUR_RED;
-  specialDay = SPECIALDAY_NONE;
   roundModifier = ROUNDMODIFIER_NONE;
   micCheckConducted = false;
   isInMicCheckTime = false;
