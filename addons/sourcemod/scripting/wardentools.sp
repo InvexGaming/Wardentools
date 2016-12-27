@@ -10,7 +10,7 @@
 UserMsg g_FadeUserMsgId; //For Blind
 
 //Defines
-#define VERSION "1.26"
+#define VERSION "1.27"
 #define CHAT_TAG_PREFIX "[{pink}Warden Tools{default}] "
 
 #define COLOUR_DEFAULT 0
@@ -183,6 +183,7 @@ int tdm_numTeams = 0;
 Handle hnsPrisonersWinHandle = null;
 
 Handle autoBeaconHandle = null;
+bool inRoundEndTime = false;
 
 char clantagStorage[MAXPLAYERS+1][32];
 bool restoreClanTags = false;
@@ -227,6 +228,7 @@ public void OnPluginStart()
   newRoundTimeElapsed = GetTime();
   
   //Hooks
+  HookEvent("round_end", Event_RoundEnd, EventHookMode_Pre);
   HookEvent("round_prestart", Event_RoundPreStart, EventHookMode_Post);
   HookEvent("player_death", Event_PlayerDeath, EventHookMode_Pre);
   HookEvent("player_spawn", Event_PlayerSpawn, EventHookMode_Post);
@@ -447,6 +449,12 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 /*********************************
  *  Events
  *********************************/
+ 
+//Round End
+public void Event_RoundEnd(Handle event, const char[] name, bool dontBroadcast) {
+  inRoundEndTime = true;
+}
+ 
 //Round pre start
 public void Event_RoundPreStart(Handle event, const char[] name, bool dontBroadcast) {
   //Reset vars
@@ -2460,9 +2468,15 @@ public Action HungerGames_Start(Handle timer)
 //Auto beacon all alive players
 public Action Timer_AutoBeaconOn(Handle timer)
 {
+  autoBeaconHandle = null;
+  
+  if (inRoundEndTime)
+    return Plugin_Handled;
+    
   ServerCommand("sm_beacon @alive");
   ServerCommand("sm_msay All players must now actively hunt other players.");
-  autoBeaconHandle = null;
+  
+  return Plugin_Handled;
 }
 
 //Apply special day effects
@@ -2620,6 +2634,9 @@ void Reset_Vars()
   if (freeforallRoundEndHandle != null) delete freeforallRoundEndHandle; 
   if (freeforallStartTimer != null) delete freeforallStartTimer;
   if (autoBeaconHandle != null) delete autoBeaconHandle;
+  
+  //No longer in round end time
+  inRoundEndTime = false;
   
   //If previous round was special day, reset previousSpecialDay
   previousSpecialDay = (specialDay != SPECIALDAY_NONE);
