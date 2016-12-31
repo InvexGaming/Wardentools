@@ -10,7 +10,7 @@
 UserMsg g_FadeUserMsgId; //For Blind
 
 //Defines
-#define VERSION "1.27"
+#define VERSION "1.28"
 #define CHAT_TAG_PREFIX "[{pink}Warden Tools{default}] "
 
 #define COLOUR_DEFAULT 0
@@ -58,6 +58,8 @@ UserMsg g_FadeUserMsgId; //For Blind
 #define SHORT_5 "invex_gaming/jb_wardentools/short_suprise_mother.mp3"
 #define SHORT_6 "invex_gaming/jb_wardentools/short_hax.mp3"
 #define SHORT_7 "invex_gaming/jb_wardentools/short_nathan_knew.mp3"
+
+#define BEAM_SOUND "invex_gaming/jb_wardentools/portalgun_shoot_red1.mp3"
 
 #define HIDE_RADAR_CSGO 1<<12
 
@@ -324,7 +326,7 @@ public void OnMapStart()
   g_HaloSprite = PrecacheModel("sprites/halo01.vmt", true);
   
   //Precache sounds
-  char precacheSounds[13][] = {INFECT_SOUND_1, INFECT_SOUND_2, INFECT_SOUND_3, INFECT_DEATH_SOUND_1, INFECT_DEATH_SOUND_2, JAWS_SOUND, SHORT_1, SHORT_2, SHORT_3, SHORT_4, SHORT_5, SHORT_6, SHORT_7};
+  char precacheSounds[14][] = {INFECT_SOUND_1, INFECT_SOUND_2, INFECT_SOUND_3, INFECT_DEATH_SOUND_1, INFECT_DEATH_SOUND_2, JAWS_SOUND, SHORT_1, SHORT_2, SHORT_3, SHORT_4, SHORT_5, SHORT_6, SHORT_7, BEAM_SOUND};
   
   for (int i = 0; i < sizeof(precacheSounds); ++i) {
     char downloadPath[PLATFORM_MAX_PATH];
@@ -948,8 +950,13 @@ public int GameMenuHandler(Menu menu, MenuAction action, int client, int param2)
           KillTimer(freezeTimer);
           freezeTimer = null;
         }
+        
+        //Reenable unlockables
+        toggleUnlockables(CS_TEAM_T, 1);
       }
       else {
+        //Disable unlockables
+        toggleUnlockables(CS_TEAM_T, 0);
         freezeTimer = CreateTimer(GetConVarFloat(FindConVar("sm_freeze_duration")) + 0.5, Timer_ReportFreezebombResults);
       }
       
@@ -1274,6 +1281,10 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
       //Create timer for damage protection
       specialDayDamageProtection = true;
       damageProtectionHandle = CreateTimer(float(GetConVarInt(cvar_hns_ctfreezetime)) - GetConVarFloat(cvar_hns_tptime), SpecialDay_DamageProtection_End);
+      
+      //Disable unlockables on HNS days
+      toggleUnlockables(CS_TEAM_T, 0);
+      toggleUnlockables(CS_TEAM_CT, 0);
 
       //Teleport all players to warden beam
       TeleportPlayersToWarden(client, GetConVarFloat(cvar_hns_tptime), "hide and seek day", Teleport_Start_T, TELEPORTTYPE_T);
@@ -1333,6 +1344,10 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
       
       //Is in hide time
       isInInfectedHideTime = true;
+      
+      //Disable unlockables on virus days
+      toggleUnlockables(CS_TEAM_T, 0);
+      toggleUnlockables(CS_TEAM_CT, 0);
       
       //Teleport all players to warden beam
       TeleportPlayersToWarden(client, GetConVarFloat(cvar_virusday_tptime), "Zombie Day", Teleport_Start_All, TELEPORTTYPE_ALL);
@@ -1774,6 +1789,10 @@ void PlaceBeam(int client)
   TE_SetupBeamRingPoint(hOrigin, 75.0, 75.5, g_BeamSprite, g_HaloSprite, 0, 0, 10.0, 10.0, 0.0, currentColour, 0, 0);
   TE_SendToAll();
   
+  //Make Beam Sound if not in round end time (to not cut off other audo)
+  if (!inRoundEndTime)
+    EmitSoundToAllAny(BEAM_SOUND, SOUND_FROM_PLAYER, SNDCHAN_AUTO, SNDLEVEL_GUNFIRE);
+  
   ++currentBeamsUsed;
   CreateTimer(curDuration, BeamCounterResetTimer);
   
@@ -1970,6 +1989,9 @@ public Action Timer_ReportFreezebombResults(Handle timer)
   if (!shouldFreezeT) {
     return Plugin_Handled;
   }
+  
+  //Reenable unlockables
+  toggleUnlockables(CS_TEAM_T, 1);
   
   //Report results
   int highestClient = -1;
@@ -2753,6 +2775,10 @@ void Reset_Vars()
   ConVar wardenClaim = FindConVar("sm_warden_enabled");
   if (wardenClaim != null)
     SetConVarInt(wardenClaim, 1);
+    
+  //Enable Store jetpack and bunnyhop unlockables
+  toggleUnlockables(CS_TEAM_T, 1);
+  toggleUnlockables(CS_TEAM_CT, 1);
 }
 
 //Return time since new round started
@@ -3362,6 +3388,27 @@ void setAndPreserveClanTag(int client, char[] newClanTag)
   
   //Set clan tag
   CS_SetClientClanTag(client, newClanTag);
+}
+
+//Disable or Enable store unlockables
+void toggleUnlockables(int team, int value) {
+  ConVar jetpack = null;
+  ConVar bunnyhop = null;
+  
+  if (team == CS_TEAM_T) {
+    jetpack = FindConVar("sm_store_jetpack_enabled_t");
+    bunnyhop = FindConVar("sm_store_bunnyhop_enabled_t");
+  }
+  else if (team == CS_TEAM_CT) {
+    jetpack = FindConVar("sm_store_jetpack_enabled_ct");
+    bunnyhop = FindConVar("sm_store_bunnyhop_enabled_ct");
+  }
+  
+  //Set value
+  if (jetpack != null)
+    SetConVarInt(jetpack, value);
+  if (bunnyhop != null)
+    SetConVarInt(bunnyhop, value); 
 }
 
 
