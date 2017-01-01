@@ -59,7 +59,7 @@ UserMsg g_FadeUserMsgId; //For Blind
 #define SHORT_6 "invex_gaming/jb_wardentools/short_hax.mp3"
 #define SHORT_7 "invex_gaming/jb_wardentools/short_nathan_knew.mp3"
 
-#define BEAM_SOUND "invex_gaming/jb_wardentools/portalgun_shoot_red1.mp3"
+#define BEAM_SOUND "invex_gaming/jb_wardentools/portalgun_shoot_red1_fix.mp3"
 
 #define HIDE_RADAR_CSGO 1<<12
 
@@ -1791,7 +1791,7 @@ void PlaceBeam(int client)
   
   //Make Beam Sound if not in round end time (to not cut off other audo)
   if (!inRoundEndTime)
-    EmitSoundToAllAny(BEAM_SOUND, SOUND_FROM_PLAYER, SNDCHAN_AUTO, SNDLEVEL_GUNFIRE);
+    EmitSoundToAllAny(BEAM_SOUND, SOUND_FROM_PLAYER, SNDCHAN_AUTO, SNDLEVEL_NORMAL);
   
   ++currentBeamsUsed;
   CreateTimer(curDuration, BeamCounterResetTimer);
