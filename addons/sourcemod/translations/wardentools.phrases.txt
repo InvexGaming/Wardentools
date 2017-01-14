@@ -41,7 +41,8 @@
   }
   "Gamemode - Blind"
   {
-    "en"			"The warden has toggled prisoners vision."
+    "#format"		"{1:s}"
+    "en"			"The warden has toggled {1} vision."
   }
   "Gametools - Set T Health"
   {
@@ -71,43 +72,43 @@
     "#format"		"{1:d}"
     "en"			"This round is a {green}warday{default}! Prisoners will be teleported to the start beacon in {green}{1}{default} seconds."
   }
-  "SpecialDay - Virus Day"
+  "SpecialDay - Zombie Day"
   {
     "#format"		"{1:d},{2:d}"
     "en"			"This round is a {green}Zombie Day{default}! All players will be teleported to the start beacon in {green}{1}{default} seconds. You then have {green}{2}{default} seconds to run!"
   }
-  "SpecialDay - Virus Day First Infected"
+  "SpecialDay - Zombie Day First Infected"
   {
     "#format"		"{1:N},{2:N}"
     "en"			"The Zombie Virus has started to spread. {green}{1}{default} and {green}{2}{default} are the first two infected!"
   }
-  "SpecialDay - Virus Day New Infected"
+  "SpecialDay - Zombie Day New Infected"
   {
     "#format"		"{1:N}"
     "en"			"{green}{1}{default} is now infected!"
   }
-  "SpecialDay - Virus Day All Infected"
+  "SpecialDay - Zombie Day All Infected"
   {
     "en"			"Everybody has been infected with the {red}Zombie Virus{default}! There were no survivors. You are all doomed."
   }
-  "SpecialDay - Virus Day Non Infected Win"
+  "SpecialDay - Zombie Day Non Infected Win"
   {
     "en"			"A cure has been found which is now killing the infected!"
   }
-  "SpecialDay - Virus Day Non Infected Win Died Off"
+  "SpecialDay - Zombie Day Non Infected Win Died Off"
   {
     "en"			"The {green}non infected{default} have survived because all of the infected have died!"
   }
-  "SpecialDay - Virus Day Infected Killed"
+  "SpecialDay - Zombie Day Infected Killed"
   {
     "#format"		"{1:N},{2:N}"
     "en"			"{green}{1}{default} has killed an infected called {green}{2}{default}!"
   }
-  "SpecialDay - Virus Day Aborted"
+  "SpecialDay - Zombie Day Aborted"
   {
     "en"			"The {green}Zombie Day{default} was aborted because not enough players were alive when picking the infected."
   }
-  "SpecialDay - Virus Day HUD"
+  "SpecialDay - Zombie Day HUD"
   {
     "#format"		"{1:s},{2:s},{3:d},{4:d}"
     "en"			"<font size='16'>Your Status: <font color='{1}'>{2}</font>\n\nInfected: <font color='#FF0033'>{3}</font>\nNot Infected: <font color='#336600'>{4}</font></font>"
