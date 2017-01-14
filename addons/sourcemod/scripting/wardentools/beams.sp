@@ -37,8 +37,8 @@ public void Beams_OnPluginStart()
   HookEvent("round_end", Beams_EventRoundEnd, EventHookMode_Pre);
   
   //Convars
-  cvar_beams_maxbeams = CreateConVar("sm_wardentools_beams_maxbeams", "7", "Maximum number of beams that can be spawned at any given time (def. 7)");
-  cvar_beams_maxunits = CreateConVar("sm_wardentools_beams_maxunits", "1500", "Maximum number of units a beam can be spawned from the player (def. 1000)");
+  cvar_beams_maxbeams = CreateConVar("sm_wt_beams_maxbeams", "7", "Maximum number of beams that can be spawned at any given time (def. 7)");
+  cvar_beams_maxunits = CreateConVar("sm_wt_beams_maxunits", "1500", "Maximum number of units a beam can be spawned from the player (def. 1000)");
 }
 
 //OnMapStart

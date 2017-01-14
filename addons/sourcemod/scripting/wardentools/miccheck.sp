@@ -22,7 +22,7 @@ static bool isInMicCheckTime = false;
 //OnPluginStart
 public void Miccheck_OnPluginStart()
 {
-  cvar_miccheck_time = CreateConVar("sm_wardentools_miccheck_time", "15.0", "The amount of time guards have to use their mic in a mic check (def. 15.0)");
+  cvar_miccheck_time = CreateConVar("sm_wt_miccheck_time", "15.0", "The amount of time guards have to use their mic in a mic check (def. 15.0)");
   
   RegAdminCmd("sm_miccheck", Miccheck_PerformCommand, ADMFLAG_GENERIC, "Conduct a mic check");
   RegAdminCmd("sm_mc", Miccheck_PerformCommand, ADMFLAG_GENERIC, "Conduct a mic check");

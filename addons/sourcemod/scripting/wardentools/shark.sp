@@ -25,9 +25,9 @@ static bool isShark[MAXPLAYERS+1] = false;
 public void Shark_OnPluginStart()
 {
   //Convars
-  cvar_shark_health = CreateConVar("sm_wardentools_shark_health", "32000", "Health CT Sharks get (def. 32000)");
-  cvar_shark_duration = CreateConVar("sm_wardentools_shark_duration", "30.0", "The amount of time a shark should remain as a shark (def. 30.0)");
-  cvar_shark_timeleft_warning = CreateConVar("sm_wardentools_shark_timeleft_warning", "5.0", "How many seconds should be left before a warning is shown (def. 5.0)");
+  cvar_shark_health = CreateConVar("sm_wt_shark_health", "32000", "Health CT Sharks get (def. 32000)");
+  cvar_shark_duration = CreateConVar("sm_wt_shark_duration", "30.0", "The amount of time a shark should remain as a shark (def. 30.0)");
+  cvar_shark_timeleft_warning = CreateConVar("sm_wt_shark_timeleft_warning", "5.0", "How many seconds should be left before a warning is shown (def. 5.0)");
   
   HookEvent("round_prestart", Shark_Reset, EventHookMode_Post);
   HookEvent("player_death", Shark_EventPlayerDeath, EventHookMode_Pre);
