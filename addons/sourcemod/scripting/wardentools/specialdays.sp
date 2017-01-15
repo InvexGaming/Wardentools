@@ -26,6 +26,7 @@
 #include "wardentools/specialdays/ffadm.sp"
 #include "wardentools/specialdays/teamdm.sp"
 #include "wardentools/specialdays/hungergames.sp"
+#include "wardentools/specialdays/oneinthechamber.sp"
 
 enum SpecialDay
 {
@@ -65,6 +66,7 @@ public void Specialdays_OnPluginStart()
   
   HookEvent("round_end", SpecialDay_EventRoundEnd, EventHookMode_Pre);
   HookEvent("round_prestart", SpecialDay_Reset, EventHookMode_Post);
+  HookEvent("server_cvar", SpecialDay_EventServerCvar, EventHookMode_Pre);
   
   //Call init functions
   Specialdays_Init_Freeday();
@@ -75,6 +77,7 @@ public void Specialdays_OnPluginStart()
   Specialdays_Init_FfaDm();
   Specialdays_Init_TeamDm();
   Specialdays_Init_Hungergames();
+  Specialdays_Init_Oneinthechamber();
 }
 
 public void Specialdays_OnMapStart()
@@ -84,7 +87,7 @@ public void Specialdays_OnMapStart()
 }
 
 //Round End
-public void SpecialDay_EventRoundEnd(Handle event, const char[] name, bool dontBroadcast)
+public Action SpecialDay_EventRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 {
   //Call end func
   if (currentSpecialDay != -1) {
@@ -95,7 +98,7 @@ public void SpecialDay_EventRoundEnd(Handle event, const char[] name, bool dontB
 }
 
 //Round pre start
-public void SpecialDay_Reset(Handle event, const char[] name, bool dontBroadcast)
+public Action SpecialDay_Reset(Handle event, const char[] name, bool dontBroadcast)
 { 
   //Enable LR if disabled
   ConVar hostiesLR = FindConVar("sm_hosties_lr");
@@ -128,6 +131,19 @@ public void SpecialDay_Reset(Handle event, const char[] name, bool dontBroadcast
     --numSpecialDays; //this round does not reduce number of rounds
     Specialdays_StartSpecialDay("Freeday");
   }
+}
+
+//Disable annoying convar changes from being printed into chat
+public Action SpecialDay_EventServerCvar(Handle event, const char[] name, bool dontBroadcast)
+{
+  char cvarName[128];
+  GetEventString(event, "cvarname", cvarName, sizeof(cvarName));
+
+  if (StrEqual(cvarName, "mp_friendlyfire") || StrEqual(cvarName, "mp_teammates_are_enemies")) {
+    return Plugin_Handled;
+  }
+
+  return Plugin_Continue;  
 }
 
 public void Specialdays_OnClientPutInServer(int client)

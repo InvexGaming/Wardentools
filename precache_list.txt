@@ -21,3 +21,4 @@ sound/invex_gaming/jb_wardentools/infected_2.mp3
 sound/invex_gaming/jb_wardentools/infected_3.mp3
 sound/invex_gaming/jb_wardentools/infected_death1.mp3
 sound/invex_gaming/jb_wardentools/infected_death2.mp3
+sound/invex_gaming/jb_wardentools/orch_hit_csharp_short_clipped.mp3

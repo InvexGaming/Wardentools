@@ -196,6 +196,19 @@
   {
     "en" "The {green}Hunger Games{default} day has now started! You may now damage other players. You have also been given random health, primary gun, secondary gun and a single grenade!"
   }
+  "SpecialDay - One in the Chamber"
+  {
+    "#format"		"{1:d},{2:d}"
+    "en"			"This round is a {green}One in the Chamber{default} day! All players will be teleported to the start beacon in {green}{1}{default} seconds. You then have {green}{2}{default} seconds to hide!"
+  }
+    "SpecialDay - One in the Chamber Round Over"
+  {
+    "en"       "The {green}One in the Chamber{default} day is now over. Remaining alive players have been slain."
+  }
+  "SpecialDay - One in the Chamber Started"
+  {
+    "en" "The {green}One in the Chamber{default} day has now started! You may now damage other players. You have {green}1{default} bullet and a knife. Each shot will result in a kill and give you another bullet!"
+  }
   "SpecialDay - Command Not Allowed"
   {
     "en" "You cannot use this command during a special day."
