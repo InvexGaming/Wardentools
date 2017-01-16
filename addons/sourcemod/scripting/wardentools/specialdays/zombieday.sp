@@ -485,6 +485,9 @@ void Specialdays_ZombieDay_InfectClient(int client, bool printMessage)
   //Give them knife
   GivePlayerItem(client, "weapon_knife");
   
+  //Set player model
+  SetEntityModel(client, "models/player/custom_player/legacy/zombie/zombie_v3.mdl");
+  
   //Overlay infected on them
   Specialdays_ZombieDay_CreateModel(client);
   

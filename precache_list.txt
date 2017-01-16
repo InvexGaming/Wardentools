@@ -5,6 +5,26 @@ materials/overlays/invex/infectedblood.vmt
 materials/overlays/invex/infectedblood.vtf
 materials/sprites/invex/infected.vmt
 materials/sprites/invex/infected.vtf
+materials/models/player/custom_player/legacy/zombie/Tex_0247_1.vmt
+materials/models/player/custom_player/legacy/zombie/Tex_0247_1.vtf
+materials/models/player/custom_player/legacy/zombie/Tex_0247_3.vtf
+materials/models/player/custom_player/legacy/zombie/Tex_0248_1.vmt
+materials/models/player/custom_player/legacy/zombie/Tex_0248_1.vtf
+materials/models/player/custom_player/legacy/zombie/Tex_0248_1_NRM.vtf
+
+//Download only
+//Zombie skin (wardentools)
+models/player/custom_player/legacy/zombie/zombie_v3.dx90.vtx
+models/player/custom_player/legacy/zombie/zombie_v3.phy
+models/player/custom_player/legacy/zombie/zombie_v3.vvd
+
+//Zombie arms (wardentools)
+models/player/custom_player/legacy/zombie/zombie_arms.dx90.vtx
+models/player/custom_player/legacy/zombie/zombie_arms.vvd
+
+//Models
+models/player/custom_player/legacy/zombie/zombie_v3.mdl
+models/player/custom_player/legacy/zombie/zombie_arms.mdl
 
 //Sounds
 sound/invex_gaming/jb_wardentools/jaws_theme.mp3

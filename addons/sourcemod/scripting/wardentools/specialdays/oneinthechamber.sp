@@ -97,6 +97,7 @@ public bool Specialdays_Oneinthechamber_RestrictionCheck()
 public void Specialdays_Oneinthechamber_OnClientPutInServer(int client)
 {
   SDKHook(client, SDKHook_WeaponCanUse, Specialdays_Oneinthechamber_BlockPickup);
+  SDKHook(client, SDKHook_WeaponEquipPost, Specialdays_Oneinthechamber_FixAmmo);
   SDKHook(client, SDKHook_OnTakeDamage, Specialdays_Oneinthechamber_OnTakeDamage);
 }
 
@@ -265,9 +266,34 @@ public Action Specialdays_Oneinthechamber_BlockPickup(int client, int weapon)
   GetEntityClassname(weapon, weaponClass, sizeof(weaponClass));
   
   //Only knife and gun allowed
-  if (!StrEqual(weaponClass, "weapon_knife") && !StrEqual(weaponClass, designatedWeapon))
-    return Plugin_Handled;
+  if (StrEqual(weaponClass, "weapon_knife"))
+    return Plugin_Continue;
+  else if (StrEqual(weaponClass, designatedWeapon) && isPastHideTime)
+    return Plugin_Continue;
 
+  return Plugin_Handled;
+}
+
+//Reset bullets of picked up weapons
+public Action Specialdays_Oneinthechamber_FixAmmo(int client, int weapon)
+{
+  if (IsClientInGame(client) && IsPlayerAlive(client)) {
+    char weaponClassName[64];
+    if (GetEdictClassname(weapon, weaponClassName, sizeof(weaponClassName))) {
+      if (StrEqual(weaponClassName, designatedWeapon)) {
+        int clip1 = GetEntProp(weapon, Prop_Send, "m_iClip1");
+        int m_iPrimaryReserveAmmoCount =  GetEntProp(weapon, Prop_Send, "m_iPrimaryReserveAmmoCount");
+
+        if (clip1 > 1 || m_iPrimaryReserveAmmoCount > 0) {
+          Handle pack;
+          CreateDataTimer(0.0, Specialdays_Oneinthechamber_SetAmmo, pack);
+          WritePackCell(pack, EntIndexToEntRef(client));
+          WritePackCell(pack, EntIndexToEntRef(weapon));
+        }
+      }
+    }
+  }
+  
   return Plugin_Continue;
 }
 
@@ -284,7 +310,6 @@ public Action Specialdays_Oneinthechamber_SetAmmo(Handle timer, Handle pack)
   if (IsClientInGame(client) && IsPlayerAlive(client)) {
     
     SetEntProp(weapon, Prop_Send, "m_iClip1", 1);
-    SetEntProp(weapon, Prop_Send, "m_iClip2", 0);
     SetEntProp(weapon, Prop_Send, "m_iPrimaryReserveAmmoCount", 0);
 
     int offset_ammo = FindDataMapInfo(client, "m_iAmmo");
