@@ -277,6 +277,9 @@ public Action Specialdays_Oneinthechamber_BlockPickup(int client, int weapon)
 //Reset bullets of picked up weapons
 public Action Specialdays_Oneinthechamber_FixAmmo(int client, int weapon)
 {
+  if (!isEnabled)
+    return Plugin_Continue;
+    
   if (IsClientInGame(client) && IsPlayerAlive(client)) {
     char weaponClassName[64];
     if (GetEdictClassname(weapon, weaponClassName, sizeof(weaponClassName))) {
