@@ -49,6 +49,21 @@
     "#format"		"{1:d}"
     "en"			"The warden has set the health of all prisoners to {green}{1}hp{default}."
   }
+  "SpecialDay - Day Start HUD"
+  {
+    "#format"		"{1:s}"
+    "en"			"<font size='20'>This round is a:</font>\n<font color='#336600' size='20'>{1}</font>"
+  }
+  "SpecialDay - Game Start Warning HUD"
+  {
+    "#format"		"{1:s},{2:d}"
+    "en"			"<font size='20'><font color='#336600'>{1}</font>\nStarts in: <font color='#F7FB00'>{2} seconds</font></font>"
+  }
+  "SpecialDay - Game Start Started"
+  {
+    "#format"		"{1:s}"
+    "en"			"<font size='20'><font color='#336600'>{1}</font>\nStarts in: <font color='#F7FB00'>STARTED!</font></font>"
+  }
   "SpecialDay - HNS"
   {
     "#format"		"{1:d},{2:d}"
@@ -152,8 +167,8 @@
   }
   "SpecialDay - Free For All Winner"
   {
-    "#format"		"{1:N},{2:s}"
-    "en"       "{green}{1}{default} has won the {green}{2}{default} day!"
+    "#format"		"{1:N},{2:s},{3:d}"
+    "en"       "{green}{1}{default} has won the {green}{2}{default} day with {green}{3}{default} kills!"
   }
   "SpecialDay - Team Deathmatch Started"
   {
