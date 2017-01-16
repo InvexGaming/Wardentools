@@ -72,6 +72,9 @@ public void Specialdays_ZombieDay_Start()
   
   CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Zombie Day", RoundToNearest(GetConVarFloat(cvar_specialdays_zombieday_tptime)), RoundToNearest(GetConVarFloat(cvar_specialdays_zombieday_hidetime)));
   
+  //Show warning
+  Specialdays_ShowGameStartWarning(GetConVarFloat(cvar_specialdays_zombieday_tptime) + GetConVarFloat(cvar_specialdays_zombieday_hidetime), 5);
+  
   //Create timer for infection start
   infectionStartTimer = CreateTimer(GetConVarFloat(cvar_specialdays_zombieday_tptime) + GetConVarFloat(cvar_specialdays_zombieday_hidetime), Specialdays_ZombieDay_StartInfection);
   

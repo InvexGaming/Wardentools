@@ -6,6 +6,7 @@ ConVar cvar_specialdays_ffadm_autobeacontime = null;
 
 //Global statics
 static bool isEnabled = false;
+static int numKills[MAXPLAYERS+1] = {0, ...};
 static Handle freeforallRoundEndHandle = null;
 static Handle freeforallStartTimer = null;
 static bool isFFARoundStalemate = false;
@@ -34,6 +35,7 @@ public void Specialdays_FfaDm_Start()
   //Apply Effects
   for (int i = 1; i <= MaxClients; ++i) {
     if (IsClientConnected(i) && IsClientInGame(i) && IsPlayerAlive(i)) {
+      numKills[i] = 0;
       Specialdays_FfaDm_ApplyEffects(i);
     }
   }
@@ -53,6 +55,9 @@ public void Specialdays_FfaDm_Start()
   
   //FFADM Day message
   CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - FFADM Day", RoundToNearest(GetConVarFloat(cvar_specialdays_ffadm_tptime)), RoundToNearest(GetConVarFloat(cvar_specialdays_ffadm_hidetime)));
+
+  //Show warning
+  Specialdays_ShowGameStartWarning(GetConVarFloat(cvar_specialdays_ffadm_tptime) + GetConVarFloat(cvar_specialdays_ffadm_hidetime), 5);
   
   //Create timer for ffa dm start
   freeforallStartTimer = CreateTimer(GetConVarFloat(cvar_specialdays_ffadm_tptime) + GetConVarFloat(cvar_specialdays_ffadm_hidetime), Specialdays_FfaDm_FfaDmStart);
@@ -122,6 +127,11 @@ public Action Specialdays_FfaDm_EventPlayerDeath(Event event, const char[] name,
   if (!isEnabled)
     return Plugin_Continue;
   
+  int attacker = GetClientOfUserId(event.GetInt("attacker"));
+  if (attacker != 0 && IsClientInGame(attacker) && IsPlayerAlive(attacker)) {
+    ++numKills[attacker];
+  }
+  
   //Count number of alive players
   int numAlive = 0;
   int lastAliveClient = -1;
@@ -134,7 +144,7 @@ public Action Specialdays_FfaDm_EventPlayerDeath(Event event, const char[] name,
   
   //Check if there is only 1 remaining player
   if (numAlive == 1 && lastAliveClient != -1 && !isFFARoundStalemate) {
-    CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Free For All Winner", lastAliveClient, "FFA Deathmatch");
+    CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Free For All Winner", lastAliveClient, "FFA Deathmatch", numKills[lastAliveClient]);
   }
   
   return Plugin_Continue;

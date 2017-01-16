@@ -9,6 +9,7 @@ ConVar cvar_specialdays_hungergames_autobeacontime = null;
 //Global statics
 static bool isEnabled = false;
 static bool isPastHideTime = false;
+static int numKills[MAXPLAYERS+1] = {0, ...};
 static Handle freeforallRoundEndHandle = null;
 static Handle freeforallStartTimer = null;
 static bool isFFARoundStalemate = false;
@@ -43,6 +44,7 @@ public void Specialdays_Hungergames_Start()
   //Remove radar
   for (int i = 1; i <= MaxClients; ++i) {
     if (IsClientConnected(i) && IsClientInGame(i) && IsPlayerAlive(i)) {
+      numKills[i] = 0;
       Specialdays_Hungergames_ApplyEffects(i);
     }
   }
@@ -62,6 +64,9 @@ public void Specialdays_Hungergames_Start()
   
   //Hunger Games Day message
   CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Hunger Games Day", RoundToNearest(GetConVarFloat(cvar_specialdays_hungergames_tptime)), RoundToNearest(GetConVarFloat(cvar_specialdays_hungergames_hidetime)));
+  
+  //Show warning
+  Specialdays_ShowGameStartWarning(GetConVarFloat(cvar_specialdays_hungergames_tptime) + GetConVarFloat(cvar_specialdays_hungergames_hidetime), 5);
   
   //Create timer for start
   freeforallStartTimer = CreateTimer(GetConVarFloat(cvar_specialdays_hungergames_tptime) + GetConVarFloat(cvar_specialdays_hungergames_hidetime), Specialdays_Hungergames_HungergamesStart);
@@ -113,6 +118,11 @@ public Action Specialdays_Hungergames_EventPlayerDeath(Event event, const char[]
   if (!isEnabled)
     return Plugin_Continue;
   
+  int attacker = GetClientOfUserId(event.GetInt("attacker"));
+  if (attacker != 0 && IsClientInGame(attacker) && IsPlayerAlive(attacker)) {
+    ++numKills[attacker];
+  }
+  
   //Count number of alive players
   int numAlive = 0;
   int lastAliveClient = -1;
@@ -125,7 +135,7 @@ public Action Specialdays_Hungergames_EventPlayerDeath(Event event, const char[]
   
   //Check if there is only 1 remaining player
   if (numAlive == 1 && lastAliveClient != -1 && !isFFARoundStalemate) {
-    CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Free For All Winner", lastAliveClient, "Hunger Games");
+    CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Free For All Winner", lastAliveClient, "Hunger Games", numKills[lastAliveClient]);
   }
   
   return Plugin_Continue;

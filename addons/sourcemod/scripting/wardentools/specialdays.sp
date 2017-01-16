@@ -56,6 +56,9 @@ static Handle damageProtectionHandle = null;
 static Handle teleportHandle = null;
 static int roundCount = 0;
 static bool isSpecialDayRound[MAX_ROUNDS] = {false, ...};
+static bool showDayStartHud = false;
+static Handle gameStartWarningTimer = null;
+static int warningSecondsLeft = -1;
 
 public void Specialdays_OnPluginStart()
 {
@@ -121,8 +124,13 @@ public Action SpecialDay_Reset(Handle event, const char[] name, bool dontBroadca
   if (teleportHandle != null)
     delete teleportHandle;
     
+  if (gameStartWarningTimer != null)
+    delete gameStartWarningTimer;
+    
   specialDayStartTime = 0;
   specialDayDamageProtection = false;
+  showDayStartHud = false;
+  warningSecondsLeft = -1;
   
   ++roundCount;
   
@@ -212,6 +220,11 @@ public void Specialdays_StartSpecialDay(char[] name)
   if (!success)
     return;
   
+  //Show HUD for 8 seconds
+  showDayStartHud = true;
+  CreateTimer(0.5, Specialdays_ShowDayStartHud);
+  CreateTimer(8.0, Specialdays_DisableDayStartHud);
+  
   //Set other required settings
   //Disable LR on special days unless its a round modifier
   ConVar hostiesLR = FindConVar("sm_hosties_lr");
@@ -231,6 +244,28 @@ public void Specialdays_StartSpecialDay(char[] name)
   ++numSpecialDays;
   
   isSpecialDayRound[roundCount] = true;
+}
+
+public Action Specialdays_ShowDayStartHud(Handle timer)
+{
+  if (!showDayStartHud)
+    return Plugin_Handled;
+    
+  if (!Specialdays_IsSpecialDay())
+    return Plugin_Handled;
+    
+  PrintCenterTextAll("%t", "SpecialDay - Day Start HUD", specialDayList[currentSpecialDay][dayName]);
+  CreateTimer(0.5, Specialdays_ShowDayStartHud);
+  
+  return Plugin_Handled;
+}
+
+public Action Specialdays_DisableDayStartHud(Handle timer)
+{
+  if (showDayStartHud)
+    showDayStartHud = false;
+    
+  return Plugin_Handled;
 }
 
 public void Specialdays_RegisterDay(char[] name, Function startFunc, Function endFunc, Function restrictionCheckFunc, Function onClientPutInServerFunc, bool allowDrawToolsValue, bool allowGameToolsValue)
@@ -428,3 +463,39 @@ public void Specialdays_SetDamageProtection(bool value, float duration)
     }
   }
 }
+
+public void Specialdays_ShowGameStartWarning(float countdown, int duration)
+{
+  gameStartWarningTimer = CreateTimer(countdown - duration,Specialdays_ShowGameStartWarningTimer);
+  warningSecondsLeft = duration;
+}
+
+//Timer called to warn of game starting
+public Action Specialdays_ShowGameStartWarningTimer(Handle timer)
+{
+  //Create warning HUD
+  CreateTimer(0.0, Specialdays_ShowGameStartWarningHud);
+  
+  gameStartWarningTimer = null;
+  
+  return Plugin_Handled;
+}
+
+public Action Specialdays_ShowGameStartWarningHud(Handle timer)
+{
+  if (!Specialdays_IsSpecialDay())
+    return Plugin_Handled;
+    
+  if (warningSecondsLeft <= 0) {
+    PrintCenterTextAll("%t", "SpecialDay - Game Start Started", specialDayList[currentSpecialDay][dayName]);
+    return Plugin_Handled;
+  }
+  
+  PrintCenterTextAll("%t", "SpecialDay - Game Start Warning HUD", specialDayList[currentSpecialDay][dayName], warningSecondsLeft);
+  --warningSecondsLeft;
+  
+  CreateTimer(1.0, Specialdays_ShowGameStartWarningHud);
+  
+  return Plugin_Handled;
+}
+

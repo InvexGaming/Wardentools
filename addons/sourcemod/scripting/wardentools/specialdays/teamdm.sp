@@ -64,6 +64,9 @@ public void Specialdays_TeamDm_Start()
   //Team Deathmatch Day message
   CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Team Deathmatch Day", RoundToNearest(GetConVarFloat(cvar_specialdays_teamdm_tptime)), RoundToNearest(GetConVarFloat(cvar_specialdays_teamdm_hidetime)));
   
+  //Show warning
+  Specialdays_ShowGameStartWarning(GetConVarFloat(cvar_specialdays_teamdm_tptime) + GetConVarFloat(cvar_specialdays_teamdm_hidetime), 5);
+  
   //Create timer for team dm start
   freeforallStartTimer = CreateTimer(GetConVarFloat(cvar_specialdays_teamdm_tptime) + GetConVarFloat(cvar_specialdays_teamdm_hidetime), Specialdays_TeamDm_TeamDmStart);
   
