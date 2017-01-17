@@ -10,6 +10,7 @@
 #define CHAT_TAG_PREFIX "[{pink}Warden Tools{default}] "
 
 #define HIDE_RADAR_CSGO 1<<12
+#define MAX_WEAPONS 44
 
 //Returns true if round is a special day, false otherwise
 native bool WardenTools_IsSpecialDay();
@@ -120,7 +121,7 @@ stock void setAndPreserveClanTag(int client, char[] newClanTag, char[][] clantag
 
 //Strip weapons
 stock void StripWeapons(int client) {
-  for (int i = 0; i < 44; i++) { 
+  for (int i = 0; i < MAX_WEAPONS; i++) { 
     int index = GetEntPropEnt(client, Prop_Send, "m_hMyWeapons", i);
     
     if(index && IsValidEdict(index))
