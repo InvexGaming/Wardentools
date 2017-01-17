@@ -274,10 +274,11 @@ void Specialdays_Oneinthechamber_ApplyEffects(int client)
   GivePlayerItem(client, "weapon_knife");
   
   if (isPastHideTime) {
-    //Give player their weapon and 1 bullet
-    int weaponEntity = GivePlayerItem(client, designatedWeapon);
-    
+    //Client will be given 1 bullet
     numBullets[client] = 1;
+    
+    //Give player their weapon and set ammo to 1 bullet
+    int weaponEntity = GivePlayerItem(client, designatedWeapon);
     
     Handle pack;
     CreateDataTimer(0.0, Specialdays_Oneinthechamber_SetAmmo, pack);
@@ -350,7 +351,7 @@ public Action Specialdays_Oneinthechamber_BlockPickup(int client, int weapon)
   //Only knife and gun allowed
   if (StrEqual(weaponClass, "weapon_knife"))
     return Plugin_Continue;
-  else if (StrEqual(weaponClass, designatedWeapon))
+  else if (StrEqual(weaponClass, designatedWeapon) && isPastHideTime) //disallow deagle pick ups in hide time
     return Plugin_Continue;
 
   return Plugin_Handled;
@@ -368,7 +369,6 @@ public Action Specialdays_Oneinthechamber_WeaponEquip(int client, int weapon)
   if (StrEqual(weaponClass, "weapon_knife"))
     return Plugin_Continue;
   else if (StrEqual(weaponClass, designatedWeapon)) {
-  
     //Set to correct number of bullets
     if (numBullets[client] != -1) {
       Handle pack;
