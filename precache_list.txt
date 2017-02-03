@@ -5,6 +5,8 @@ materials/overlays/invex/infectedblood.vmt
 materials/overlays/invex/infectedblood.vtf
 materials/sprites/invex/infected.vmt
 materials/sprites/invex/infected.vtf
+materials/sprites/invex/black1.vmt
+materials/sprites/invex/black1.vtf
 materials/models/player/custom_player/legacy/zombie/Tex_0247_1.vmt
 materials/models/player/custom_player/legacy/zombie/Tex_0247_1.vtf
 materials/models/player/custom_player/legacy/zombie/Tex_0247_3.vtf
