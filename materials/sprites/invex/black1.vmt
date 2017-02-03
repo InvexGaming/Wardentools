@@ -1,0 +1,5 @@
+LightmappedGeneric
+{
+	$basetexture "sprites/invex/black1"
+  $translucent 1
+}

@@ -22,6 +22,7 @@ static float curDuration = 20.0;
 static bool inRoundEndTime = false;
 
 //Materials
+static int g_BlackBeamSprite;
 static int g_BeamSprite;
 static int g_HaloSprite;
 
@@ -44,12 +45,15 @@ public void Beams_OnPluginStart()
 //OnMapStart
 public void Beams_OnMapStart()
 {
+  AddFileToDownloadsTable("materials/sprites/invex/black1.vmt");
+  AddFileToDownloadsTable("materials/sprites/invex/black1.vtf");
   AddFileToDownloadsTable("materials/sprites/laserbeam.vmt");
   AddFileToDownloadsTable("materials/sprites/laserbeam.vtf");
   AddFileToDownloadsTable("materials/sprites/halo01.vmt");
   AddFileToDownloadsTable("materials/sprites/halo01.vtf");
   
   //Precache materials
+  g_BlackBeamSprite = PrecacheModel("sprites/invex/black1.vmt", true);
   g_BeamSprite = PrecacheModel("sprites/laserbeam.vmt", true);
   g_HaloSprite = PrecacheModel("sprites/halo01.vmt", true);
 }
@@ -158,7 +162,15 @@ public Action Beams_ExcessBeamSpawner(Handle timer, Handle pack)
   beamColour[3] = ReadPackCell(pack);
   
   //Draw Beam
-  TE_SetupBeamRingPoint(hOrigin, 75.0, 75.5, g_BeamSprite, g_HaloSprite, 0, 0, 10.0, 10.0, 0.0, beamColour, 0, 0);
+  //Set sprite to black or regular
+  int beamSprite = g_BeamSprite;
+  if ((beamColour[0] == colours_black[0]) &&
+      (beamColour[1] == colours_black[1]) &&
+      (beamColour[2] == colours_black[2]) &&
+      (beamColour[3] == colours_black[3]))
+    beamSprite = g_BlackBeamSprite;
+    
+  TE_SetupBeamRingPoint(hOrigin, 75.0, 75.5, beamSprite, g_HaloSprite, 0, 0, 10.0, 10.0, 0.0, beamColour, 0, 0);
   TE_SendToAll();
   
   //Restart next timer
