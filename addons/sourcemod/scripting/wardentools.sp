@@ -2,6 +2,7 @@
 #include <sdkhooks>
 #include <sdktools>
 #include <cstrike>
+#include <clientprefs>
 #include <wardentools>
 #include <warden>
 #include "colors_csgo.inc"
@@ -12,9 +13,23 @@
 
 //Menus
 Menu MainMenu = null;
-Menu GameMenu = null;
 Menu DrawMenu = null;
+Menu GameMenu = null;
 Menu SpecialDaysMenu = null;
+Menu SetColourMenu = null;
+Menu BeamTypeMenu = null;
+Menu BeamOptionsMenu = null;
+Menu BeamDurationMenu = null;
+Menu BeamParticleStyleMenu = null;
+
+//Preference Cookies
+Handle c_colour = null;
+Handle c_beamtype = null;
+Handle c_beamduration = null;
+Handle c_beamparticlestyle = null;
+
+//Flags
+AdminFlag vipFlag = Admin_Custom3;
 
 //Settings
 int newRoundTimeElapsed = 0;
@@ -70,7 +85,6 @@ public void OnPluginStart()
   
   //Modules OnPluginStart
   Beams_OnPluginStart();
-  Colours_OnPluginStart();
   Laser_OnPluginStart();
   Highlights_OnPluginStart();
   Freezebomb_OnPluginStart();
@@ -80,6 +94,15 @@ public void OnPluginStart()
   Miccheck_OnPluginStart();
   Priorityspeaker_OnPluginStart();
   Specialdays_OnPluginStart();
+  
+  //Setup cookies
+  c_colour = RegClientCookie("WardenTools_Colour", "The selected plain colour", CookieAccess_Private);
+  c_beamtype = RegClientCookie("WardenTools_BeamType", "The selected beam type", CookieAccess_Private);
+  c_beamduration = RegClientCookie("WardenTools_BeamDuration", "The duration of time beams last for", CookieAccess_Private);
+  c_beamparticlestyle = RegClientCookie("WardenTools_BeamParticleStyle", "The style to use with particle beams", CookieAccess_Private);
+    
+  //Create Menus
+  SetupMenus();
   
   //SDKHooks
   int iMaxClients = GetMaxClients();
@@ -120,32 +143,11 @@ public void OnClientPutInServer(int client)
 //Round pre start
 public void Event_RoundPreStart(Handle event, const char[] name, bool dontBroadcast)
 {
-  //Close menu handler when round starts/ends
-  if (MainMenu != null) delete MainMenu;
-  if (GameMenu != null) delete GameMenu;
-  if (DrawMenu != null) delete DrawMenu;
-  if (SpecialDaysMenu != null) delete SpecialDaysMenu;
-  
   newRoundTimeElapsed = GetTime();
 }
 
-//Remove menus if warden is removed
-public void warden_OnWardenRemoved(int warden)
-{
-  if (IsClientInGame(warden)) {
-    //Kill all menus for warden
-    CancelClientMenu(warden);
-    
-    //Close menu handlers
-    if (MainMenu != null) delete MainMenu;
-    if (GameMenu != null) delete GameMenu;
-    if (DrawMenu != null) delete DrawMenu;
-    if (SpecialDaysMenu != null) delete SpecialDaysMenu;
-  }
-}
-
 /*********************************
- *  Console Commands
+ *  Commands
  *********************************/
 
 //Show WT Menu
@@ -170,109 +172,217 @@ public Action Command_WT_Menu(int client, int args)
     return Plugin_Handled;
   }
   
-  //Create menu
-  MainMenu = CreateMenu(MainMenuHandler);
-  char mainMenuTitle[255];
-  Format(mainMenuTitle, sizeof(mainMenuTitle), "Warden Tools (%s)", WT_VERSION);
-  SetMenuTitle(MainMenu, mainMenuTitle);
-  
-  //Add menu items
-  if (!Specialdays_IsSpecialDay() || (Specialdays_IsSpecialDay() && (specialDayList[Specialdays_GetSpecialDay()][allowDrawTools])))
-    AddMenuItem(MainMenu, "Option_DrawTools", "Draw Tools");
-  else
-    AddMenuItem(MainMenu, "Option_DrawTools", "Draw Tools", ITEMDRAW_DISABLED);
-  
-  //Game tools only enabled on non-special days or on round modifier days
-  if (!Specialdays_IsSpecialDay())  
-    AddMenuItem(MainMenu, "Option_GameTools", "Game Tools");
-  else
-    AddMenuItem(MainMenu, "Option_GameTools", "Game Tools", ITEMDRAW_DISABLED);
-    
-  //Disable special day menu if one already running
-  char specialDayText[64];
-  Format(specialDayText, sizeof(specialDayText), "Special Days (%d left)", Specialdays_GetNumSpecialDaysLeft());
-  
-  if (!Specialdays_CanStartSpecialDay())
-    AddMenuItem(MainMenu, "Option_SpecialDay", specialDayText, ITEMDRAW_DISABLED);
-  else
-    AddMenuItem(MainMenu, "Option_SpecialDay", specialDayText);
-   
-  if (Miccheck_IsMicCheckConducted())
-    AddMenuItem(MainMenu, "Option_MicCheck", "Perform Mic Check", ITEMDRAW_DISABLED);
-  else
-    AddMenuItem(MainMenu, "Option_MicCheck", "Perform Mic Check");
-  
-  AddMenuItem(MainMenu, "Option_PriorityToggle", "Priority Speaker [Toggle]");
-  
   DisplayMenu(MainMenu, client, MENU_TIME_FOREVER);
   
   return Plugin_Handled;
 }
 
-
 /*********************************
  *  Menus and Handlers
  *********************************/
-
-//Handles main Menu
-public int MainMenuHandler(Menu menu, MenuAction action, int client, int param2)
+//Setup all menus program will use
+void SetupMenus()
 {
-  if (action == MenuAction_Select)
+  //Delete old menus
+  if (MainMenu != null)
+    delete MainMenu;
+  
+  if (DrawMenu != null)
+    delete DrawMenu;
+    
+  if (GameMenu != null)
+    delete GameMenu;
+    
+  if (SpecialDaysMenu != null)
+    delete SpecialDaysMenu;
+  
+  if (SetColourMenu != null)
+    delete SetColourMenu;
+    
+  if (BeamTypeMenu != null)
+    delete BeamTypeMenu;
+    
+  if (BeamOptionsMenu != null)
+    delete BeamOptionsMenu;
+   
+  if (BeamDurationMenu != null)
+    delete BeamDurationMenu;
+    
+  if (BeamParticleStyleMenu != null)
+    delete BeamParticleStyleMenu;
+   
+  //Main menu
+  MainMenu = CreateMenu(MainMenuHandler, MenuAction_Select|MenuAction_Cancel|MenuAction_End|MenuAction_DisplayItem|MenuAction_DrawItem);
+  
+  char mainMenuTitle[255];
+  Format(mainMenuTitle, sizeof(mainMenuTitle), "Warden Tools (%s)", WT_VERSION);
+  SetMenuTitle(MainMenu, mainMenuTitle);
+  
+  SetMenuExitButton(MainMenu, true);
+  
+  AddMenuItem(MainMenu, "Option_DrawTools", "Draw Tools");
+  AddMenuItem(MainMenu, "Option_GameTools", "Game Tools");
+  AddMenuItem(MainMenu, "Option_SpecialDay", "Special Days");
+  AddMenuItem(MainMenu, "Option_MicCheck", "Perform Mic Check");
+  AddMenuItem(MainMenu, "Option_PriorityToggle", "Priority Speaker [Toggle]");
+  
+  //Draw Menu
+  DrawMenu = CreateMenu(DrawMenuHandler);
+  SetMenuTitle(DrawMenu, "Draw Tools");
+  SetMenuExitBackButton(DrawMenu, true);
+  
+  AddMenuItem(DrawMenu, "Option_SpawnBeam", "Spawn Beam");
+  AddMenuItem(DrawMenu, "Option_SetColour", "Set Colour");
+  AddMenuItem(DrawMenu, "Option_BeamOptions", "Configure Beams");
+  AddMenuItem(DrawMenu, "Option_Laser", "Laser [Toggle]");
+  AddMenuItem(DrawMenu, "Option_Highlight", "Highlight Prisoner [Toggle]");
+  AddMenuItem(DrawMenu, "Option_ClearHighlight", "Clear Highlights");
+  
+  //Game Menu
+  GameMenu = CreateMenu(GameMenuHandler);
+  SetMenuTitle(GameMenu, "Game Tools");
+  SetMenuExitBackButton(GameMenu, true);
+  
+  AddMenuItem(GameMenu, "Option_SetHealth", "Reset T Health (100hp)");
+  AddMenuItem(GameMenu, "Option_Freezebomb", "Freezebomb Prisoners (Toggle)");
+  AddMenuItem(GameMenu, "Option_Blind", "Blind Prisoners (Toggle)");
+  AddMenuItem(GameMenu, "Option_CTShark", "Make CT Shark (30 seconds)");
+  AddMenuItem(GameMenu, "Option_HighlightedDM", "Highlighted Team Deathmatch (Toggle)");
+  AddMenuItem(GameMenu, "Option_Slap", "Slap Prisoners");
+  
+  //Special Days Menu
+  SpecialDaysMenu = CreateMenu(SpecialDaysMenuHandler);
+  SetMenuTitle(SpecialDaysMenu, "Select a Special Day");
+  SetMenuExitBackButton(SpecialDaysMenu, true);
+  
+  //Add menu items for all registered special days
+  for(int i = 0; i < Specialdays_GetSpecialDayCount(); ++i) {
+    AddMenuItem(SpecialDaysMenu, specialDayList[i][dayName], specialDayList[i][dayName]);
+  }
+  
+  //Set Colour Menu
+  SetColourMenu = CreateMenu(SetColourMenuHandler, MenuAction_Select|MenuAction_Cancel|MenuAction_End|MenuAction_DisplayItem|MenuAction_DrawItem);
+  SetMenuTitle(SetColourMenu, "Select Beam Colour");
+  SetMenuExitBackButton(SetColourMenu, true);
+  
+  char colourBuffer[8];
+  IntToString(COLOURS_RED, colourBuffer, sizeof(colourBuffer));
+  AddMenuItem(SetColourMenu, colourBuffer, "Red");
+  IntToString(COLOURS_GREEN, colourBuffer, sizeof(colourBuffer));
+  AddMenuItem(SetColourMenu, colourBuffer, "Green");
+  IntToString(COLOURS_BLUE, colourBuffer, sizeof(colourBuffer));
+  AddMenuItem(SetColourMenu, colourBuffer, "Blue");
+  IntToString(COLOURS_PURPLE, colourBuffer, sizeof(colourBuffer));
+  AddMenuItem(SetColourMenu, colourBuffer, "Purple");
+  IntToString(COLOURS_YELLOW, colourBuffer, sizeof(colourBuffer));
+  AddMenuItem(SetColourMenu, colourBuffer, "Yellow");
+  IntToString(COLOURS_CYAN, colourBuffer, sizeof(colourBuffer));
+  AddMenuItem(SetColourMenu, colourBuffer, "Cyan");
+  IntToString(COLOURS_PINK, colourBuffer, sizeof(colourBuffer));
+  AddMenuItem(SetColourMenu, colourBuffer, "Pink");
+  IntToString(COLOURS_ORANGE, colourBuffer, sizeof(colourBuffer));
+  AddMenuItem(SetColourMenu, colourBuffer, "Orange");
+  IntToString(COLOURS_WHITE, colourBuffer, sizeof(colourBuffer));
+  AddMenuItem(SetColourMenu, colourBuffer, "White");
+  IntToString(COLOURS_BLACK, colourBuffer, sizeof(colourBuffer));
+  AddMenuItem(SetColourMenu, colourBuffer, "Black");
+
+  
+  //Beam Options Menu
+  BeamOptionsMenu = CreateMenu(BeamOptionsMenuHandler, MenuAction_Select|MenuAction_Cancel|MenuAction_End|MenuAction_DisplayItem|MenuAction_DrawItem);
+  SetMenuTitle(BeamOptionsMenu, "Configure Beams");
+  SetMenuExitBackButton(BeamOptionsMenu, true);
+  
+  AddMenuItem(BeamOptionsMenu, "Option_BeamType", "Set Beam Type");
+  AddMenuItem(BeamOptionsMenu, "Option_BeamDuration", "Toggle Beam Duration");
+  AddMenuItem(BeamOptionsMenu, "Option_BeamParticleStyle", "Set Particle Beam Style");
+  
+  //Beam Type Menu
+  BeamTypeMenu = CreateMenu(BeamTypeMenuHandler, MenuAction_Select|MenuAction_Cancel|MenuAction_End|MenuAction_DisplayItem|MenuAction_DrawItem);
+  SetMenuTitle(BeamTypeMenu, "Set Beam Type");
+  SetMenuExitBackButton(BeamTypeMenu, true);
+  
+  char beamTypeBuffer[8];
+  IntToString(BEAMTYPE_COLOUR, beamTypeBuffer, sizeof(beamTypeBuffer));
+  AddMenuItem(BeamTypeMenu, beamTypeBuffer, "Plain Colour Beams");
+  IntToString(BEAMTYPE_PARTICLE, beamTypeBuffer, sizeof(beamTypeBuffer));
+  AddMenuItem(BeamTypeMenu, beamTypeBuffer, "Particle Beams");
+  
+  //Beam Duration Menu
+  BeamDurationMenu = CreateMenu(BeamDurationMenuHandler, MenuAction_Select|MenuAction_Cancel|MenuAction_End|MenuAction_DisplayItem|MenuAction_DrawItem);
+  SetMenuTitle(BeamDurationMenu, "Select Beam Display Time");
+  SetMenuExitBackButton(BeamDurationMenu, true);
+
+  AddMenuItem(BeamDurationMenu, "10", "Last 10 seconds");
+  AddMenuItem(BeamDurationMenu, "20", "Last 20 seconds");
+  AddMenuItem(BeamDurationMenu, "30", "Last 30 seconds");
+  AddMenuItem(BeamDurationMenu, "40", "Last 40 seconds");
+  AddMenuItem(BeamDurationMenu, "50", "Last 50 seconds");
+  AddMenuItem(BeamDurationMenu, "60", "Last 60 seconds");
+  
+  //Beam Particle Style Menu
+  BeamParticleStyleMenu = CreateMenu(BeamParticleStyleMenuHandler, MenuAction_Select|MenuAction_Cancel|MenuAction_End|MenuAction_DisplayItem|MenuAction_DrawItem);
+  SetMenuTitle(BeamParticleStyleMenu, "Select a Particle Beam Style");
+  SetMenuExitBackButton(BeamParticleStyleMenu, true);
+  
+  //Add menu items for all registered special days
+  for(int i = 0; i < Particlebeams_GetNumParticleStyles(); ++i) {
+    char buffer[4];
+    IntToString(i, buffer, sizeof(buffer));
+    AddMenuItem(BeamParticleStyleMenu, buffer, Particlebeams_List[i][szNiceName]);
+  }
+}
+ 
+//Handles main Menu
+public int MainMenuHandler(Menu menu, MenuAction action, int client, int itemNum)
+{
+  char info[32];
+  GetMenuItem(menu, itemNum, info, sizeof(info));
+
+  if (action == MenuAction_DrawItem) {
+    if (StrEqual(info, "Option_DrawTools")) {
+      if (Specialdays_IsSpecialDay() && !specialDayList[Specialdays_GetSpecialDay()][allowDrawTools]) {
+        return ITEMDRAW_DISABLED;
+      }
+    }
+    else if (StrEqual(info, "Option_GameTools")) {
+      //Game tools only enabled on non-special days
+      if (Specialdays_IsSpecialDay())
+        return ITEMDRAW_DISABLED;
+    }
+    else if (StrEqual(info, "Option_SpecialDay")) {
+      if (!Specialdays_CanStartSpecialDay())
+        return ITEMDRAW_DISABLED;
+    }
+    else if (StrEqual(info, "Option_MicCheck")) {
+      if (Miccheck_IsMicCheckConducted())
+        return ITEMDRAW_DISABLED;
+    }
+  }
+  else if (action == MenuAction_DisplayItem) {
+    if (StrEqual(info, "Option_SpecialDay")) {
+      char specialDayText[64];
+      Format(specialDayText, sizeof(specialDayText), "Special Days (%d left)", Specialdays_GetNumSpecialDaysLeft());
+      return RedrawMenuItem(specialDayText);
+    }
+  }
+  else if (action == MenuAction_Select)
   {
     //Ensure user is warden
     bool isWarden = view_as<bool>(warden_iswarden(client));
     
     if (!isWarden) {
       CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Warden Only Command");
-      return;
+      return 0;
     }
     
-    char info[32];
-    GetMenuItem(menu, param2, info, sizeof(info));
-    
     if (StrEqual(info, "Option_DrawTools")) {
-      //Create menu
-      DrawMenu = CreateMenu(DrawMenuHandler);
-      SetMenuExitBackButton(DrawMenu, true);
-      SetMenuTitle(DrawMenu, "Use a drawing tool");
-      
-      //Add menu items
-      AddMenuItem(DrawMenu, "Option_SpawnBeam", "Spawn Beam");
-      AddMenuItem(DrawMenu, "Option_SetColour", "Set Colour");
-      AddMenuItem(DrawMenu, "Option_BeamDuration", "Toggle Beam Duration");
-      AddMenuItem(DrawMenu, "Option_Laser", "Laser [Toggle]");
-      AddMenuItem(DrawMenu, "Option_Highlight", "Highlight Prisoner [Toggle]");
-      AddMenuItem(DrawMenu, "Option_ClearHighlight", "Clear Highlights");
-
       DisplayMenu(DrawMenu, client, MENU_TIME_FOREVER);
     }
     else if (StrEqual(info, "Option_GameTools")) {
-      //Create menu
-      GameMenu = CreateMenu(GameMenuHandler);
-      SetMenuExitBackButton(GameMenu, true);
-      SetMenuTitle(GameMenu, "Select an effect");
-      
-      //Add menu items
-      AddMenuItem(GameMenu, "Option_SetHealth", "Reset T Health (100hp)");
-      AddMenuItem(GameMenu, "Option_Freezebomb", "Freezebomb Prisoners (Toggle)");
-      AddMenuItem(GameMenu, "Option_Blind", "Blind Prisoners (Toggle)");
-      AddMenuItem(GameMenu, "Option_CTShark", "Make CT Shark (30 seconds)");
-      AddMenuItem(GameMenu, "Option_HighlightedDM", "Highlighted Team Deathmatch (Toggle)");
-      AddMenuItem(GameMenu, "Option_Slap", "Slap Prisoners");
-      
       DisplayMenu(GameMenu, client, MENU_TIME_FOREVER);
     }
     else if (StrEqual(info, "Option_SpecialDay")) {
-      //Create menu
-      SpecialDaysMenu = CreateMenu(SpecialDaysMenuHandler);
-      SetMenuExitBackButton(SpecialDaysMenu, true);
-      SetMenuTitle(SpecialDaysMenu, "Select a Special Day");
-      
-      //Add menu items for all registered special days
-      for(int i = 0; i < Specialdays_GetSpecialDayCount(); ++i) {
-        AddMenuItem(SpecialDaysMenu, specialDayList[i][dayName], specialDayList[i][dayName]);
-      }
-      
       DisplayMenu(SpecialDaysMenu, client, MENU_TIME_FOREVER);
     }
     else if (StrEqual(info, "Option_MicCheck")) {
@@ -280,14 +390,15 @@ public int MainMenuHandler(Menu menu, MenuAction action, int client, int param2)
     }
     else if (StrEqual(info, "Option_PriorityToggle")) {
       Priorityspeaker_Toggle();
-      
       DisplayMenu(MainMenu, client, MENU_TIME_FOREVER);
     }
   }
+  
+  return 0;
 }
 
-//Handle duration menu
-public int DurationMenuHandler(Menu menu, MenuAction action, int client, int param2)
+//Handle draw tools menu
+public int DrawMenuHandler(Menu menu, MenuAction action, int client, int param2)
 {
   if (action == MenuAction_Select)
   {
@@ -302,33 +413,97 @@ public int DurationMenuHandler(Menu menu, MenuAction action, int client, int par
     char info[32];
     GetMenuItem(menu, param2, info, sizeof(info));
     
-    if (StrEqual(info, "Option_10seconds")) {
-      Beams_SetDuration(10.0);
+    if (StrEqual(info, "Option_SpawnBeam")) {
+      //Spawn beam
+      Beams_PlaceBeam(client);
+      DisplayMenuAtItem(DrawMenu, client, 0, 0);
     }
-    else if (StrEqual(info, "Option_20seconds")) {
-      Beams_SetDuration(20.0);
+    else if (StrEqual(info, "Option_SetColour")) {
+      DisplayMenu(SetColourMenu, client, MENU_TIME_FOREVER);
     }
-    else if (StrEqual(info, "Option_30seconds")) {
-      Beams_SetDuration(30.0);
+    else if (StrEqual(info, "Option_BeamOptions")) {
+      DisplayMenu(BeamOptionsMenu, client, MENU_TIME_FOREVER);
     }
-    else if (StrEqual(info, "Option_40seconds")) {
-      Beams_SetDuration(40.0);
+    else if (StrEqual(info, "Option_Laser")) {
+
+      //Toggle Laser
+      if (Laser_IsLaserEnabled(client))
+        Laser_RemoveLaserAction(client, 0);
+      else
+        Laser_PlaceLaserAction(client, 0);
+      
+      //Go back to draw tools menu again
+      DisplayMenuAtItem(DrawMenu, client, 0, 0);
     }
-    else if (StrEqual(info, "Option_50seconds")) {
-      Beams_SetDuration(50.0);
+    else if (StrEqual(info, "Option_Highlight")) {
+      if (Teamdeathmatch_IsInHighlightTeamDM()) {
+        DisplayMenuAtItem(DrawMenu, client, 0, 0);
+        CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Team Deathmatch - Can't Highlight");
+        return;
+      }
+      
+      //Get position client is looking at
+      float hOrigin[3];
+      GetAimOrigin(client, hOrigin, 2);
+      
+      //Iterate through all T's
+      int playerToToggleHighlight = -1;
+      float minDistance = 999999.9;
+      
+      for (int i = 1; i <= MaxClients; ++i) {
+        if (IsClientInGame(i) && IsPlayerAlive(i)) {
+          if (GetClientTeam(i) == CS_TEAM_T) {
+            //Get player position
+            float prisonerOrigin[3];
+            GetClientAbsOrigin(i, prisonerOrigin);
+            
+            //Get position to hOrigin
+            if (GetVectorDistance(prisonerOrigin, hOrigin, false) < minDistance) {
+              minDistance = GetVectorDistance(prisonerOrigin, hOrigin, false);
+              playerToToggleHighlight = i;
+            }
+          }
+        }
+      }
+      
+      //Highlight said player
+      if (playerToToggleHighlight == -1 || minDistance > 100.0) {
+        CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Highlight - No Player Found");
+      }
+      else {
+        Highlights_SetIsHighlighted(playerToToggleHighlight, !Highlights_IsHighlighted(playerToToggleHighlight));
+        
+        if (Highlights_IsHighlighted(playerToToggleHighlight)) {
+          Highlights_SetHighlightedColour(playerToToggleHighlight, colours_currentColourCode);
+        }
+        else {
+          Highlights_SetHighlightedColour(playerToToggleHighlight, COLOURS_DEFAULT);
+        }
+      }
+      
+      //Go back to draw tools menu again
+      DisplayMenuAtItem(DrawMenu, client, 0, 0);
     }
-    else if (StrEqual(info, "Option_60seconds")) {
-      Beams_SetDuration(60.0);
+    else if (StrEqual(info, "Option_ClearHighlight")) {
+      if (Teamdeathmatch_IsInHighlightTeamDM()) {
+        DisplayMenuAtItem(DrawMenu, client, 0, 0);
+        CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Team Deathmatch - Can't Highlight");
+        return;
+      }
+      
+      Highlights_ClearHighlights();
+      
+      CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "Highlight - Removed from all", client);
+      
+      //Go back to draw tools menu again
+      DisplayMenuAtItem(DrawMenu, client, 0, 0);
     }
-    
-    //Go back to main menu again
-    DisplayMenuAtItem(DrawMenu, client, 0, 0);
   }
   else if (action == MenuAction_Cancel)
   {
     if (param2 == MenuCancel_ExitBack) {
       //Goto parent menu
-      DisplayMenuAtItem(DrawMenu, client, 0, 0);
+      DisplayMenuAtItem(MainMenu, client, 0, 0);
     }
   }
 }
@@ -421,147 +596,6 @@ public int GameMenuHandler(Menu menu, MenuAction action, int client, int param2)
   }
 }
 
-//Handle draw tools menu
-public int DrawMenuHandler(Menu menu, MenuAction action, int client, int param2)
-{
-  if (action == MenuAction_Select)
-  {
-    //Ensure user is warden
-    bool isWarden = view_as<bool>(warden_iswarden(client));
-    
-    if (!isWarden) {
-      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Warden Only Command");
-      return;
-    }
-    
-    char info[32];
-    GetMenuItem(menu, param2, info, sizeof(info));
-    
-    if (StrEqual(info, "Option_SpawnBeam")) {
-      //Spawn beam
-      Beams_PlaceBeam(client);
-      DisplayMenuAtItem(DrawMenu, client, 0, 0);
-    }
-    else if (StrEqual(info, "Option_SetColour")) {
-      //Create menu
-      Menu SetColourMenu = CreateMenu(SetColourMenuHandler);
-      SetMenuExitBackButton(SetColourMenu, true);
-      SetMenuTitle(SetColourMenu, "Select Beam Colour");
-
-      //Add menu items
-      AddMenuItem(SetColourMenu, "Option_ColourRed", "Red");
-      AddMenuItem(SetColourMenu, "Option_ColourGreen", "Green");
-      AddMenuItem(SetColourMenu, "Option_ColourBlue", "Blue");
-      AddMenuItem(SetColourMenu, "Option_ColourPurple", "Purple");
-      AddMenuItem(SetColourMenu, "Option_ColourYellow", "Yellow");
-      AddMenuItem(SetColourMenu, "Option_ColourCyan", "Cyan");
-      AddMenuItem(SetColourMenu, "Option_ColourPink", "Pink");
-      AddMenuItem(SetColourMenu, "Option_ColourOrange", "Orange");
-      AddMenuItem(SetColourMenu, "Option_ColourBlack", "Black");
-      AddMenuItem(SetColourMenu, "Option_ColourWhite", "White");
-      
-      DisplayMenu(SetColourMenu, client, MENU_TIME_FOREVER);
-    }
-    else if (StrEqual(info, "Option_BeamDuration")) {
-      //Create menu
-      Menu DurationMenu = CreateMenu(DurationMenuHandler);
-      SetMenuExitBackButton(DurationMenu, true);
-      SetMenuTitle(DurationMenu, "Select Beam Display Time");
-
-      //Add menu items
-      AddMenuItem(DurationMenu, "Option_10seconds", "Last 10 seconds");
-      AddMenuItem(DurationMenu, "Option_20seconds", "Last 20 seconds");
-      AddMenuItem(DurationMenu, "Option_30seconds", "Last 30 seconds");
-      AddMenuItem(DurationMenu, "Option_40seconds", "Last 40 seconds");
-      AddMenuItem(DurationMenu, "Option_50seconds", "Last 50 seconds");
-      AddMenuItem(DurationMenu, "Option_60seconds", "Last 60 seconds");
-
-      DisplayMenu(DurationMenu, client, MENU_TIME_FOREVER);
-    }
-    else if (StrEqual(info, "Option_Laser")) {
-
-      //Toggle Laser
-      if (Laser_IsLaserEnabled(client))
-        Laser_RemoveLaserAction(client, 0);
-      else
-        Laser_PlaceLaserAction(client, 0);
-      
-      //Go back to draw tools menu again
-      DisplayMenuAtItem(DrawMenu, client, 0, 0);
-    }
-    else if (StrEqual(info, "Option_Highlight")) {
-      if (Teamdeathmatch_IsInHighlightTeamDM()) {
-        DisplayMenuAtItem(DrawMenu, client, 0, 0);
-        CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Team Deathmatch - Can't Highlight");
-        return;
-      }
-      
-      //Get position client is looking at
-      float hOrigin[3];
-      GetAimOrigin(client, hOrigin, 2);
-      
-      //Iterate through all T's
-      int playerToToggleHighlight = -1;
-      float minDistance = 999999.9;
-      
-      for (int i = 1; i <= MaxClients; ++i) {
-        if (IsClientInGame(i) && IsPlayerAlive(i)) {
-          if (GetClientTeam(i) == CS_TEAM_T) {
-            //Get player position
-            float prisonerOrigin[3];
-            GetClientAbsOrigin(i, prisonerOrigin);
-            
-            //Get position to hOrigin
-            if (GetVectorDistance(prisonerOrigin, hOrigin, false) < minDistance) {
-              minDistance = GetVectorDistance(prisonerOrigin, hOrigin, false);
-              playerToToggleHighlight = i;
-            }
-          }
-        }
-      }
-      
-      //Highlight said player
-      if (playerToToggleHighlight == -1 || minDistance > 100.0) {
-        CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Highlight - No Player Found");
-      }
-      else {
-        Highlights_SetIsHighlighted(playerToToggleHighlight, !Highlights_IsHighlighted(playerToToggleHighlight));
-        
-        if (Highlights_IsHighlighted(playerToToggleHighlight)) {
-          Highlights_SetHighlightedColour(playerToToggleHighlight, colours_currentColourCode);
-        }
-        else {
-          Highlights_SetHighlightedColour(playerToToggleHighlight, COLOURS_DEFAULT);
-        }
-      }
-      
-      //Go back to draw tools menu again
-      DisplayMenuAtItem(DrawMenu, client, 0, 0);
-    }
-    else if (StrEqual(info, "Option_ClearHighlight")) {
-      if (Teamdeathmatch_IsInHighlightTeamDM()) {
-        DisplayMenuAtItem(DrawMenu, client, 0, 0);
-        CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Team Deathmatch - Can't Highlight");
-        return;
-      }
-      
-      Highlights_ClearHighlights();
-      
-      CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "Highlight - Removed from all", client);
-      
-      //Go back to draw tools menu again
-      DisplayMenuAtItem(DrawMenu, client, 0, 0);
-    }
-  }
-  else if (action == MenuAction_Cancel)
-  {
-    if (param2 == MenuCancel_ExitBack) {
-      //Goto parent menu
-      DisplayMenuAtItem(MainMenu, client, 0, 0);
-    }
-  }
-}
-
 //Handle special days menu
 public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int param2)
 {
@@ -596,85 +630,37 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
   }
 }
 
-//Handle colour menu
-public int SetColourMenuHandler(Menu menu, MenuAction action, int client, int param2)
+//Handle beam options menu
+public int BeamOptionsMenuHandler(Menu menu, MenuAction action, int client, int param2)
 {
-  if (action == MenuAction_Select)
+  char info[32];
+  GetMenuItem(menu, param2, info, sizeof(info));
+
+  if (action == MenuAction_DrawItem) {
+    if (StrEqual(info, "Option_BeamParticleStyle")) {
+      if (Beams_GetBeamType() != BEAMTYPE_PARTICLE)
+        return ITEMDRAW_DISABLED;
+    }
+  }
+  else if (action == MenuAction_Select)
   {
     //Ensure user is warden
     bool isWarden = view_as<bool>(warden_iswarden(client));
     
     if (!isWarden) {
       CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Warden Only Command");
-      return;
+      return 0;
     }
     
-    char info[32];
-    GetMenuItem(menu, param2, info, sizeof(info));
-    
-    if (StrEqual(info, "Option_ColourRed")) {
-      //Red
-      Colours_SetCurrentColour(colours_red);
-      colours_currentColourCode = COLOURS_RED;
-      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Colour Active", "darkred", "red");
+    if (StrEqual(info, "Option_BeamType")) {
+      DisplayMenu(BeamTypeMenu, client, MENU_TIME_FOREVER);
     }
-    else if (StrEqual(info, "Option_ColourGreen")) {
-      //Green
-      Colours_SetCurrentColour(colours_green);
-      colours_currentColourCode = COLOURS_GREEN;
-      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Colour Active", "lightgreen", "green");
+    else if (StrEqual(info, "Option_BeamDuration")) {
+      DisplayMenu(BeamDurationMenu, client, MENU_TIME_FOREVER);
     }
-    else if (StrEqual(info, "Option_ColourBlue")) {
-      //Blue
-      Colours_SetCurrentColour(colours_blue);
-      colours_currentColourCode = COLOURS_BLUE;
-      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Colour Active", "blue", "blue");
+    else if (StrEqual(info, "Option_BeamParticleStyle")) {
+      DisplayMenu(BeamParticleStyleMenu, client, MENU_TIME_FOREVER);
     }
-    else if (StrEqual(info, "Option_ColourPurple")) {
-      //Purple
-      Colours_SetCurrentColour(colours_purple);
-      colours_currentColourCode = COLOURS_PURPLE;
-      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Colour Active", "purple", "purple");
-    }
-    else if (StrEqual(info, "Option_ColourYellow")) {
-      //Yellow
-      Colours_SetCurrentColour(colours_yellow);
-      colours_currentColourCode = COLOURS_YELLOW;
-      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Colour Active", "olive", "yellow");
-    }
-    else if (StrEqual(info, "Option_ColourCyan")) {
-      //Cyan
-      Colours_SetCurrentColour(colours_cyan);
-      colours_currentColourCode= COLOURS_CYAN;
-      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Colour Active", "lightblue", "cyan");
-    }
-    else if (StrEqual(info, "Option_ColourPink")) {
-      //Pink
-      Colours_SetCurrentColour(colours_pink);
-      colours_currentColourCode = COLOURS_PINK;
-      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Colour Active", "default", "pink");
-    }
-    else if (StrEqual(info, "Option_ColourOrange")) {
-      //Orange
-      Colours_SetCurrentColour(colours_orange);
-      colours_currentColourCode = COLOURS_ORANGE;
-      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Colour Active", "default", "orange");
-    }
-    else if (StrEqual(info, "Option_ColourWhite")) {
-      //White
-      Colours_SetCurrentColour(colours_white);
-      colours_currentColourCode = COLOURS_WHITE;
-      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Colour Active", "default", "white");
-    }
-    else if (StrEqual(info, "Option_ColourBlack")) {
-      //Black
-      Colours_SetCurrentColour(colours_black);
-      colours_currentColourCode = COLOURS_BLACK;
-      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Colour Active", "default", "black");
-    }
-    
-    //Go back to draw menu again
-    DisplayMenuAtItem(DrawMenu, client, 0, 0);
   }
   else if (action == MenuAction_Cancel)
   {
@@ -683,6 +669,256 @@ public int SetColourMenuHandler(Menu menu, MenuAction action, int client, int pa
       DisplayMenuAtItem(DrawMenu, client, 0, 0);
     }
   }
+  
+  return 0;
+}
+
+//Handle duration type menu
+public int BeamTypeMenuHandler(Menu menu, MenuAction action, int client, int param2)
+{
+  char info[32];
+  int temp;
+  char display[64];
+  GetMenuItem(menu, param2, info, sizeof(info), temp, display, sizeof(display));
+  
+  int beamType = StringToInt(info);
+
+  if (action == MenuAction_DrawItem) {
+    if (beamType == Beams_GetBeamType()) {
+      return ITEMDRAW_DISABLED;
+    }
+    else if (beamType == BEAMTYPE_PARTICLE) {
+      int isVIP = CheckCommandAccess(client, "", FlagToBit(vipFlag));
+      if (!isVIP)
+        return ITEMDRAW_DISABLED;
+    }
+  }
+  else if (action == MenuAction_DisplayItem) {
+    if (beamType == Beams_GetBeamType()) {
+      char selectedBeamTypeText[64];
+      Format(selectedBeamTypeText, sizeof(selectedBeamTypeText), "%s [*]", display);
+      return RedrawMenuItem(selectedBeamTypeText);
+    }
+    else if (beamType == BEAMTYPE_PARTICLE) {
+      int isVIP = CheckCommandAccess(client, "", FlagToBit(vipFlag));
+      if (!isVIP) {
+        char particleBeamText[64];
+        Format(particleBeamText, sizeof(particleBeamText), "Particle Beams (VIP Only)");
+        return RedrawMenuItem(particleBeamText);
+      }
+    }
+  }
+  else if (action == MenuAction_Select)
+  {
+    //Ensure user is warden
+    bool isWarden = view_as<bool>(warden_iswarden(client));
+    
+    if (!isWarden) {
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Warden Only Command");
+      return 0;
+    }    
+    
+    //Set Beam Type to selected option
+    Beams_SetBeamType(beamType);
+    
+    CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Beam Type Set", display);
+    
+    //Go back to parent menu
+    DisplayMenuAtItem(BeamTypeMenu, client, GetMenuSelectionPosition(), 0);
+  }
+  else if (action == MenuAction_Cancel)
+  {
+    if (param2 == MenuCancel_ExitBack) {
+      //Goto parent menu
+      DisplayMenuAtItem(BeamOptionsMenu, client, 0, 0);
+    }
+  }
+  
+  return 0;
+}
+
+//Handle duration menu
+public int BeamDurationMenuHandler(Menu menu, MenuAction action, int client, int param2)
+{
+  char info[32];
+  int temp;
+  char display[64];
+  GetMenuItem(menu, param2, info, sizeof(info), temp, display, sizeof(display));
+
+  if (action == MenuAction_DrawItem) {
+    if (StringToFloat(info) == Beams_GetBeamDuration())
+        return ITEMDRAW_DISABLED;
+  }
+  else if (action == MenuAction_DisplayItem) {
+    if (StringToFloat(info) == Beams_GetBeamDuration()) {
+      char selectedDurationText[64];
+      Format(selectedDurationText, sizeof(selectedDurationText), "%s [*]", display);
+      return RedrawMenuItem(selectedDurationText);
+    }
+  }
+  else if (action == MenuAction_Select)
+  {
+    //Ensure user is warden
+    bool isWarden = view_as<bool>(warden_iswarden(client));
+    
+    if (!isWarden) {
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Warden Only Command");
+      return 0;
+    }
+    
+    float newDuration = StringToFloat(info);
+    
+    Beams_SetDuration(newDuration);
+    
+    CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Duration Set", newDuration);
+    
+    //Go back to parent menu
+    DisplayMenuAtItem(BeamDurationMenu, client, GetMenuSelectionPosition(), 0);
+  }
+  else if (action == MenuAction_Cancel)
+  {
+    if (param2 == MenuCancel_ExitBack) {
+      //Goto parent menu
+      DisplayMenuAtItem(BeamOptionsMenu, client, 0, 0);
+    }
+  }
+  
+  return 0;
+}
+
+//Handle beam particle style
+public int BeamParticleStyleMenuHandler(Menu menu, MenuAction action, int client, int param2)
+{
+  char info[32];
+  int temp;
+  char display[64];
+  GetMenuItem(menu, param2, info, sizeof(info), temp, display, sizeof(display));
+
+  int particleBeamStyle = StringToInt(info);
+  
+  if (action == MenuAction_DrawItem) {
+    if (particleBeamStyle == Particlebeams_GetStyle())
+      return ITEMDRAW_DISABLED;
+  }
+  else if (action == MenuAction_DisplayItem) {
+    if (particleBeamStyle == Particlebeams_GetStyle()) {
+      char selectedParticleBeamStyleText[64];
+      Format(selectedParticleBeamStyleText, sizeof(selectedParticleBeamStyleText), "%s [*]", display);
+      return RedrawMenuItem(selectedParticleBeamStyleText);
+    }
+  }
+  else if (action == MenuAction_Select)
+  {
+    //Ensure user is warden
+    bool isWarden = view_as<bool>(warden_iswarden(client));
+    
+    if (!isWarden) {
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Warden Only Command");
+      return 0;
+    }
+    
+    Particlebeams_SetStyle(particleBeamStyle);
+    
+    CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Beam Style Set", display);
+    
+    //Go back to parent menu
+    DisplayMenuAtItem(BeamParticleStyleMenu, client, GetMenuSelectionPosition(), 0);
+  }
+  else if (action == MenuAction_Cancel)
+  {
+    if (param2 == MenuCancel_ExitBack) {
+      //Goto parent menu
+      DisplayMenuAtItem(BeamOptionsMenu, client, 0, 0);
+    }
+  }
+  
+  return 0;
+}
+
+//Handle colour menu
+public int SetColourMenuHandler(Menu menu, MenuAction action, int client, int param2)
+{
+  char info[32];
+  int temp;
+  char display[64];
+  GetMenuItem(menu, param2, info, sizeof(info), temp, display, sizeof(display));
+  
+  int colourCode = StringToInt(info);
+
+  if (action == MenuAction_DrawItem) {
+    //Disable currently selected colour
+    if (colours_currentColourCode == colourCode)
+        return ITEMDRAW_DISABLED;
+  }
+  else if (action == MenuAction_DisplayItem) {
+    if (colours_currentColourCode == colourCode) {
+      char selectedColourText[64];
+      Format(selectedColourText, sizeof(selectedColourText), "%s [*]", display);
+      return RedrawMenuItem(selectedColourText);
+    }
+  }
+  else if (action == MenuAction_Select)
+  {
+    //Ensure user is warden
+    bool isWarden = view_as<bool>(warden_iswarden(client));
+    
+    if (!isWarden) {
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Warden Only Command");
+      return 0;
+    }
+    
+    //Set colour code
+    colours_currentColourCode = colourCode;
+    
+    //Set current colour
+    int newColour[4];
+    Colours_GetColourFromColourCode(colourCode, newColour);
+    Colours_SetCurrentColour(newColour);
+    
+    //Print message
+    if (colourCode == COLOURS_RED) {
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Colour Active", "darkred", "red");
+     }
+    else if (colourCode == COLOURS_GREEN) {
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Colour Active", "lightgreen", "green");
+    }
+    else if (colourCode == COLOURS_BLUE) {
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Colour Active", "blue", "blue");
+    }
+    else if (colourCode == COLOURS_PURPLE) {
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Colour Active", "purple", "purple");
+    }
+    else if (colourCode == COLOURS_YELLOW) {
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Colour Active", "olive", "yellow");
+    }
+    else if (colourCode == COLOURS_CYAN) {
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Colour Active", "lightblue", "cyan");
+    }
+    else if (colourCode == COLOURS_PINK) {
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Colour Active", "default", "pink");
+    }
+    else if (colourCode == COLOURS_ORANGE) {
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Colour Active", "default", "orange");
+    }
+    else if (colourCode == COLOURS_WHITE) {
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Colour Active", "default", "white");
+    }
+    else if (colourCode == COLOURS_BLACK) {
+      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Colour Active", "default", "black");
+    }
+    
+    //Go back to draw menu again
+    DisplayMenuAtItem(SetColourMenu, client, GetMenuSelectionPosition(), 0);
+  }
+  else if (action == MenuAction_Cancel)
+  {
+    if (param2 == MenuCancel_ExitBack) {
+      //Goto parent menu
+      DisplayMenuAtItem(DrawMenu, client, 0, 0);
+    }
+  }
+  
+  return 0;
 }
 
 //Handle shark menu
@@ -783,4 +1019,87 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 public int Native_IsSpecialDay(Handle plugin, int numParams)
 {
   return Specialdays_IsSpecialDay();
+}
+
+/*********************************
+ * Global Forwards
+ *********************************/
+
+public void warden_OnWardenCreated(int warden)
+{
+  //Load preferences from cookies for new warden
+  if (AreClientCookiesCached(warden)) {
+    char buffer[16];
+  
+    //c_colour
+    GetClientCookie(warden, c_colour, buffer, sizeof(buffer));
+    
+    if (strlen(buffer) == 0) { //Set default values for empty cookie
+      Colours_SetCurrentColour(colours_red);
+      colours_currentColourCode = COLOURS_RED; 
+    } else {
+      int colourCode = StringToInt(buffer);
+      int newColour[4];
+      Colours_GetColourFromColourCode(colourCode, newColour); //get colour from code
+      Colours_SetCurrentColour(newColour); //set colour values
+      colours_currentColourCode = colourCode; //set colour code
+    }
+    
+    //c_beamtype
+    GetClientCookie(warden, c_beamtype, buffer, sizeof(buffer));
+    if (strlen(buffer) == 0) //Set default values for empty cookie
+      Beams_SetBeamType(BEAMTYPE_COLOUR);
+    else
+      Beams_SetBeamType(StringToInt(buffer));
+    
+    //c_beamduration
+    GetClientCookie(warden, c_beamduration, buffer, sizeof(buffer));
+    if (strlen(buffer) == 0) //Set default values for empty cookie
+      Beams_SetDuration(BEAM_DEFAULT_DURATION);
+    else
+      Beams_SetDuration(StringToFloat(buffer));
+    
+    //c_beamparticlestyle
+    GetClientCookie(warden, c_beamparticlestyle, buffer, sizeof(buffer));
+    if (strlen(buffer) == 0) //Set default values for empty cookie
+      Particlebeams_SetStyle(DEFAULT_PARTICLEBEAMS_STYLE);
+    else
+      Particlebeams_SetStyle(StringToInt(buffer));
+  }
+  
+  //Check beam type status
+  int isVIP = CheckCommandAccess(warden, "", FlagToBit(vipFlag));
+  if (!isVIP && Beams_GetBeamType() == BEAMTYPE_PARTICLE) {
+    Beams_SetBeamType(BEAMTYPE_COLOUR);
+  }
+}
+
+public void warden_OnWardenRemoved(int warden)
+{
+  //Save preferences as cookies
+  if (AreClientCookiesCached(warden)) {
+    char buffer[16];
+    
+    //c_colour
+    IntToString(colours_currentColourCode, buffer, sizeof(buffer));
+    SetClientCookie(warden, c_colour, buffer);
+    
+    //c_beamtype
+    IntToString(Beams_GetBeamType(), buffer, sizeof(buffer));
+    SetClientCookie(warden, c_beamtype, buffer);
+    
+    //c_beamduration
+    FloatToString(Beams_GetBeamDuration(), buffer, sizeof(buffer));
+    SetClientCookie(warden, c_beamduration, buffer);
+    
+    //c_beamparticlestyle
+    IntToString(Particlebeams_GetStyle(), buffer, sizeof(buffer));
+    SetClientCookie(warden, c_beamparticlestyle, buffer);
+  }
+  
+  //Remove menus if warden removed
+  if (IsClientInGame(warden)) {
+    //Kill all menus for warden
+    CancelClientMenu(warden);
+  }
 }

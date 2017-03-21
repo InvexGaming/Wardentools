@@ -1,5 +1,5 @@
 /*
-* Spawns beams (rings) on the ground
+* Selects/Manages which beam to use
 * Prefix: beams_
 */
 
@@ -10,21 +10,21 @@
 
 #include <wardentools>
 
-#include "wardentools/colours.sp"
+#include "wardentools/colourbeams.sp"
+#include "wardentools/particlebeams.sp"
 #include "wardentools/specialdays.sp"
 
 //Defines
 #define BEAM_SOUND "invex_gaming/jb_wardentools/portalgun_shoot_red1_fix.mp3"
+#define BEAMTYPE_COLOUR 0
+#define BEAMTYPE_PARTICLE 1
+#define BEAM_DEFAULT_DURATION 20.0
 
 //Global statics
+static int curBeamType = BEAMTYPE_COLOUR;
 static int currentBeamsUsed = 0;
-static float curDuration = 20.0;
+static float curDuration = BEAM_DEFAULT_DURATION;
 static bool inRoundEndTime = false;
-
-//Materials
-static int g_BlackBeamSprite;
-static int g_BeamSprite;
-static int g_HaloSprite;
 
 //Convars
 ConVar cvar_beams_maxbeams = null;
@@ -40,22 +40,15 @@ public void Beams_OnPluginStart()
   //Convars
   cvar_beams_maxbeams = CreateConVar("sm_wt_beams_maxbeams", "7", "Maximum number of beams that can be spawned at any given time (def. 7)");
   cvar_beams_maxunits = CreateConVar("sm_wt_beams_maxunits", "1500", "Maximum number of units a beam can be spawned from the player (def. 1000)");
+  
+  //Call submodule OnPluginStart
+  Particlebeams_OnPluginStart();
 }
 
 //OnMapStart
 public void Beams_OnMapStart()
 {
-  AddFileToDownloadsTable("materials/sprites/invex/black1.vmt");
-  AddFileToDownloadsTable("materials/sprites/invex/black1.vtf");
-  AddFileToDownloadsTable("materials/sprites/laserbeam.vmt");
-  AddFileToDownloadsTable("materials/sprites/laserbeam.vtf");
-  AddFileToDownloadsTable("materials/sprites/halo01.vmt");
-  AddFileToDownloadsTable("materials/sprites/halo01.vtf");
-  
-  //Precache materials
-  g_BlackBeamSprite = PrecacheModel("sprites/invex/black1.vmt", true);
-  g_BeamSprite = PrecacheModel("sprites/laserbeam.vmt", true);
-  g_HaloSprite = PrecacheModel("sprites/halo01.vmt", true);
+  Colourbeams_OnMapStart();
 }
 
 //Round End
@@ -68,7 +61,6 @@ public void Beams_EventRoundEnd(Handle event, const char[] name, bool dontBroadc
 public void Beams_Reset(Handle event, const char[] name, bool dontBroadcast)
 {
   currentBeamsUsed = 0;
-  curDuration = 20.0;
   inRoundEndTime = false;
 }
 
@@ -101,10 +93,10 @@ public void Beams_PlaceBeam(int client)
     return;
   }
   
-  //Spawn Beam
-  Beams_SpawnBeam(curDuration, hOrigin, colours_current);
+  //Spawn the beam
+  Beams_SpawnBeam(client, curDuration, hOrigin);
   
-  //Make Beam Sound if not in round end time (to not cut off other audo)
+  //Make Beam Sound if not in round end time (to not cut off other audio)
   if (!inRoundEndTime)
     EmitSoundToAllAny(BEAM_SOUND, SOUND_FROM_PLAYER, SNDCHAN_AUTO, SNDLEVEL_NORMAL);
   
@@ -114,84 +106,19 @@ public void Beams_PlaceBeam(int client)
   return;
 }
 
+public void Beams_SpawnBeam(int client, float duration, float position[3])
+{
+  //Spawn Beam based on beam type preference
+  if (curBeamType == BEAMTYPE_COLOUR)
+    Colourbeams_PlaceBeam(client, duration, position);
+  else if (curBeamType == BEAMTYPE_PARTICLE)
+    Particlebeams_PlaceBeam(client, duration, position);
+}
+
 //Reset beam counter for 1 beam
 public Action Beams_CounterResetTimer(Handle timer)
 {
   --currentBeamsUsed;
-}
-
-//Used to spawn Beams given a duration, position and colour
-public void Beams_SpawnBeam(float duration, float position[3], const int colour[4])
-{
-  int excessDurationCount = RoundToFloor(duration / 10.0);
-  
-  //Start timer to recreate beacon
-  Handle beampack;
-  CreateDataTimer(0.0, Beams_ExcessBeamSpawner, beampack);
-  WritePackCell(beampack, excessDurationCount);
-  
-  //Origin
-  WritePackFloat(beampack, position[0]);
-  WritePackFloat(beampack, position[1]);
-  WritePackFloat(beampack, position[2]);
-  
-  //RGB Colour
-  WritePackCell(beampack, colour[0]);
-  WritePackCell(beampack, colour[1]);
-  WritePackCell(beampack, colour[2]);
-  WritePackCell(beampack, colour[3]);
-}
-
-//Used to spawn same beam every 10 second to avoid timer glitches for longer durations
-public Action Beams_ExcessBeamSpawner(Handle timer, Handle pack)
-{
-  ResetPack(pack);
-  
-  int excessDurationCount = ReadPackCell(pack);
-  
-  float hOrigin[3];
-  hOrigin[0] = ReadPackFloat(pack);
-  hOrigin[1] = ReadPackFloat(pack);
-  hOrigin[2] = ReadPackFloat(pack);
-  
-  //RGB colour
-  int beamColour[4];
-  beamColour[0] = ReadPackCell(pack);
-  beamColour[1] = ReadPackCell(pack);
-  beamColour[2] = ReadPackCell(pack);
-  beamColour[3] = ReadPackCell(pack);
-  
-  //Draw Beam
-  //Set sprite to black or regular
-  int beamSprite = g_BeamSprite;
-  if ((beamColour[0] == colours_black[0]) &&
-      (beamColour[1] == colours_black[1]) &&
-      (beamColour[2] == colours_black[2]) &&
-      (beamColour[3] == colours_black[3]))
-    beamSprite = g_BlackBeamSprite;
-    
-  TE_SetupBeamRingPoint(hOrigin, 75.0, 75.5, beamSprite, g_HaloSprite, 0, 0, 10.0, 10.0, 0.0, beamColour, 0, 0);
-  TE_SendToAll();
-  
-  //Restart next timer
-  --excessDurationCount;
-  
-  if (excessDurationCount != 0) {
-    Handle nextPack;
-    CreateDataTimer(10.0, Beams_ExcessBeamSpawner, nextPack);
-    WritePackCell(nextPack, excessDurationCount);
-    
-    //Origin
-    WritePackFloat(nextPack, hOrigin[0]);
-    WritePackFloat(nextPack, hOrigin[1]);
-    WritePackFloat(nextPack, hOrigin[2]);
-    
-    //RGB Colour
-    WritePackCell(nextPack, beamColour[0]);
-    WritePackCell(nextPack, beamColour[1]);
-    WritePackCell(nextPack, beamColour[2]);
-    WritePackCell(nextPack, beamColour[3]);
-  }
 }
 
 //Returns true if a restriction is enforced and we cannot proceed
@@ -230,7 +157,22 @@ bool Beams_CheckRestrictions(int client)
 }
 
 //Getters/Setters
+public int Beams_GetBeamType()
+{
+  return curBeamType;
+}
+
+public float Beams_GetBeamDuration()
+{
+  return curDuration;
+}
+
 public void Beams_SetDuration(float duration)
 {
   curDuration = duration;
+}
+
+public void Beams_SetBeamType(int type)
+{
+  curBeamType = type;
 }

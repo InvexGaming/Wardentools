@@ -324,7 +324,7 @@ public void Specialdays_TeleportPlayers(int client, float tptime, char[] special
   WritePackFloat(pack, client_angles[2]);
   
   //Draw beam (rally point)
-  Beams_SpawnBeam(tptime, client_origin, colours_current);
+  Beams_SpawnBeam(client, tptime, client_origin);
 }
 
 //Teleport start timer handler

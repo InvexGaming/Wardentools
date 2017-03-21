@@ -259,6 +259,9 @@ public Action Specialdays_Oneinthechamber_UpdateBullets(Handle timer, Handle pac
   client = EntRefToEntIndex(ReadPackCell(pack));
   weapon = EntRefToEntIndex(ReadPackCell(pack));
   
+  if (client == INVALID_ENT_REFERENCE || weapon == INVALID_ENT_REFERENCE)
+    return Plugin_Handled;
+  
   numBullets[client] = GetClip1Ammo(weapon);
   
   return Plugin_Handled;

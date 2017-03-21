@@ -39,19 +39,6 @@ int colours_black[4] = {1, 1, 1, 200};
 int colours_current[4] = {255, 0, 0, 200}; //red is default
 int colours_currentColourCode = COLOURS_RED;
 
-//OnPluginStart
-public void Colours_OnPluginStart()
-{
-  HookEvent("round_prestart", Colours_Reset, EventHookMode_Post);
-}
-
-//Round pre start
-public void Colours_Reset(Handle event, const char[] name, bool dontBroadcast)
-{
-  colours_current = colours_red;
-  colours_currentColourCode = COLOURS_RED;
-}
-
 //Getters/Setters
 
 //Set Colour

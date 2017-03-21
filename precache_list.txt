@@ -5,14 +5,56 @@ materials/overlays/invex/infectedblood.vmt
 materials/overlays/invex/infectedblood.vtf
 materials/sprites/invex/infected.vmt
 materials/sprites/invex/infected.vtf
-materials/sprites/invex/black1.vmt
-materials/sprites/invex/black1.vtf
 materials/models/player/custom_player/legacy/zombie/Tex_0247_1.vmt
 materials/models/player/custom_player/legacy/zombie/Tex_0247_1.vtf
 materials/models/player/custom_player/legacy/zombie/Tex_0247_3.vtf
 materials/models/player/custom_player/legacy/zombie/Tex_0248_1.vmt
 materials/models/player/custom_player/legacy/zombie/Tex_0248_1.vtf
 materials/models/player/custom_player/legacy/zombie/Tex_0248_1_NRM.vtf
+
+//Particle Beams
+materials/invexparticles/animglow_particle01.vmt
+materials/invexparticles/animglow_particle01.vtf
+materials/invexparticles/blast.vmt
+materials/invexparticles/blast.vtf
+materials/invexparticles/blueflare.vmt
+materials/invexparticles/blueflare.vtf
+materials/invexparticles/bubble.vmt
+materials/invexparticles/bubble.vtf
+materials/invexparticles/donuts.vmt
+materials/invexparticles/donuts.vtf
+materials/invexparticles/electric1.vmt
+materials/invexparticles/electric1.vtf
+materials/invexparticles/electrical_arc_sprites.vmt
+materials/invexparticles/electrical_arc_sprites.vtf
+materials/invexparticles/energyball.vmt
+materials/invexparticles/energyball.vtf
+materials/invexparticles/energysplash.vmt
+materials/invexparticles/energysplash.vtf
+materials/invexparticles/fire_cloud1.vmt
+materials/invexparticles/fire_cloud1.vtf
+materials/invexparticles/greenleaf.vmt
+materials/invexparticles/greenleaf.vtf
+materials/invexparticles/particle_glow_05.vtf
+materials/invexparticles/particle_glow_05_additive.vmt
+materials/invexparticles/particle_smokegrenade.vmt
+materials/invexparticles/particle_smokegrenade.vtf
+materials/invexparticles/rainbowdash.vmt
+materials/invexparticles/rainbowdash.vtf
+materials/invexparticles/reminiscences.vmt
+materials/invexparticles/reminiscences.vtf
+materials/invexparticles/spark.vmt
+materials/invexparticles/spark.vtf
+materials/invexparticles/styui.vmt
+materials/invexparticles/styui.vtf
+materials/invexparticles/yellowflare.vmt
+materials/invexparticles/yellowflare.vtf
+materials/vgui/white.vmt
+materials/vgui/white.vtf
+
+//Generics
+//Particle Beams
+particles/invexparticles2.pcf
 
 //Download only
 //Zombie skin (wardentools)

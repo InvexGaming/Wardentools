@@ -5,6 +5,21 @@
     "#format"		"{1:s},{2:s}"
     "en"			"The {{1}}{2}{default} colour is now active."
   }
+  "Duration Set"
+  {
+    "#format"		"{1:.1f}"
+    "en"			"The beam duration has been set to {green}{1}{default} seconds."
+  }
+  "Beam Type Set"
+  {
+    "#format"		"{1:s}"
+    "en"			"The beam type has been set to: {green}{1}{default}."
+  }
+  "Beam Style Set"
+  {
+    "#format"		"{1:s}"
+    "en"			"The particle beam style has been set to: {green}{1}{default}."
+  }
   "CT Only Command"
   {
     "en"			"Only the CT's can use this command."

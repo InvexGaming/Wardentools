@@ -6,8 +6,8 @@
 #include "warden.inc"
 
 //Global Defines
-#define WT_VERSION "2.03"
-#define CHAT_TAG_PREFIX "[{pink}Warden Tools{default}] "
+#define WT_VERSION "2.06"
+#define CHAT_TAG_PREFIX "[{pink}WT{default}] "
 
 #define HIDE_RADAR_CSGO 1<<12
 #define MAX_WEAPONS 44
