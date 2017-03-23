@@ -13,7 +13,7 @@
 //Defines
 #define MAX_PARTICLES 256
 #define DEFAULT_PARTICLEBEAMS_STYLE 0
-#define PARTICLE_PCF_FILE "particles/invexparticles2.pcf"
+#define PARTICLE_PCF_FILE "particles/invexbeams1.pcf"
 
 enum CustomParticles
 {
@@ -37,94 +37,94 @@ public void Particlebeams_OnPluginStart()
   ArrayList niceNameList = new ArrayList(MAX_PARTICLES);
   
   //Add the selectable particle effects
-  effectList.PushString("rainbow");
+  effectList.PushString("beam_rainbow");
   niceNameList.PushString("Rainbow | Rainbow 1");
   
-  effectList.PushString("rainbow2");
+  effectList.PushString("beam_rainbow2");
   niceNameList.PushString("Rainbow | Rainbow 2");
   
-  effectList.PushString("ring10");
+  effectList.PushString("beam_ring10");
   niceNameList.PushString("Rainbow | Rainbow 3");
   
-  effectList.PushString("ring15");
+  effectList.PushString("beam_ring15");
   niceNameList.PushString("Rainbow | Rainbow 4");
   
-  effectList.PushString("mix_rainbow3");
+  effectList.PushString("beam_mix_rainbow3");
   niceNameList.PushString("Rainbow | Rainbow (2 Rings)");
   
-  effectList.PushString("mix_rainbow7");
+  effectList.PushString("beam_mix_rainbow7");
   niceNameList.PushString("Rainbow | Rainbow (2 Rings, Wide Bottom)");
   
-  effectList.PushString("mix_rainbow6");
+  effectList.PushString("beam_mix_rainbow6");
   niceNameList.PushString("Rainbow | Rainbow (2 Rings, Wide Top)");
   
-  effectList.PushString("mix_rainbow4");
+  effectList.PushString("beam_mix_rainbow4");
   niceNameList.PushString("Rainbow | Rainbow (3 Rings)");
   
-  effectList.PushString("mix_ring2");
+  effectList.PushString("beam_mix_ring2");
   niceNameList.PushString("Rainbow | Cylinder (2 Rings)");
   
-  effectList.PushString("mix_thunder");
+  effectList.PushString("beam_mix_thunder");
   niceNameList.PushString("Thunder Rings/Clouds | Electric");
   
-  effectList.PushString("mix_thunder2");
+  effectList.PushString("beam_mix_thunder2");
   niceNameList.PushString("Thunder Rings/Clouds | Teal");
   
-  effectList.PushString("thunder");
+  effectList.PushString("beam_thunder");
   niceNameList.PushString("Thunder Rings/Clouds | Pulse Electric");
   
-  effectList.PushString("lightningcloud");
+  effectList.PushString("beam_lightningcloud");
   niceNameList.PushString("Thunder Rings/Clouds | Lightning (White Cloud)");
   
-  effectList.PushString("cloud");
+  effectList.PushString("beam_cloud");
   niceNameList.PushString("Thunder Rings/Clouds | Cloud (Blue Cloud)");
   
-  effectList.PushString("nimbus");
+  effectList.PushString("beam_nimbus");
   niceNameList.PushString("Thunder Rings/Clouds | Flying Nimbus (Yellow Cloud)");
   
-  effectList.PushString("mix_vortex2");
+  effectList.PushString("beam_mix_vortex2");
   niceNameList.PushString("Vortex Rings | Red");
   
-  effectList.PushString("mix_vortex3");
+  effectList.PushString("beam_mix_vortex3");
   niceNameList.PushString("Vortex Rings | Rainbow");
   
-  effectList.PushString("mix_vortex6");
+  effectList.PushString("beam_mix_vortex6");
   niceNameList.PushString("Vortex Rings | Rainbow 2");
   
-  effectList.PushString("mix_vortex4");
+  effectList.PushString("beam_mix_vortex4");
   niceNameList.PushString("Vortex Rings | Frost (White)");
   
-  effectList.PushString("vixr_body");
+  effectList.PushString("beam_vixr_body");
   niceNameList.PushString("Vortex Rings | White");
   
-  effectList.PushString("ringglow3");
+  effectList.PushString("beam_ringglow3");
   niceNameList.PushString("Vortex Rings | Purple/Red Glow");
   
-  effectList.PushString("ringglow5");
+  effectList.PushString("beam_ringglow5");
   niceNameList.PushString("Vortex Rings | Blue Splatter Glow");
   
-  effectList.PushString("mix_ring5");
+  effectList.PushString("beam_mix_ring5");
   niceNameList.PushString("Vortex Rings | Fuzzing 1 (Blue)");
   
-  effectList.PushString("mix_ring7");
+  effectList.PushString("beam_mix_ring7");
   niceNameList.PushString("Vortex Rings | Teal 1");
   
-  effectList.PushString("ring16");
+  effectList.PushString("beam_ring16");
   niceNameList.PushString("Vortex Rings | Teal 2");
   
-  effectList.PushString("mix_redring");
+  effectList.PushString("beam_mix_redring");
   niceNameList.PushString("Vortex Rings | Hell Ring + Trail");
   
-  effectList.PushString("reminiscences");
+  effectList.PushString("beam_reminiscences");
   niceNameList.PushString("Miscellaneous | Reminiscences"); 
   
-  effectList.PushString("bubble2");
+  effectList.PushString("beam_bubble2");
   niceNameList.PushString("Miscellaneous | Bubbles (Green + Ring)"); 
   
-  effectList.PushString("donuts");
+  effectList.PushString("beam_donuts");
   niceNameList.PushString("Miscellaneous | Donuts (Pink)"); 
   
-  effectList.PushString("leaf");
+  effectList.PushString("beam_leaf");
   niceNameList.PushString("Miscellaneous | Leaf (Spring)"); 
   
   //Set total number of particles
