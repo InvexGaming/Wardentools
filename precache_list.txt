@@ -54,7 +54,7 @@ materials/vgui/white.vtf
 
 //Generics
 //Particle Beams
-particles/invexparticles2.pcf
+particles/invexbeams1.pcf
 
 //Download only
 //Zombie skin (wardentools)
