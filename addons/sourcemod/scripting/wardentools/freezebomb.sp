@@ -1,6 +1,6 @@
 /*
 * Freezebomb game
-* Prefix: freezebomb_
+* Prefix: FreezeBomb_
 */
 
 #if defined _wardentools_freezebomb_included
@@ -8,54 +8,52 @@
 #endif
 #define _wardentools_freezebomb_included
 
-
 #include <wardentools>
 
 //Static globals
-static bool shouldFreezeT = false;
-static Handle freezeTimer = null;
+static bool s_ShouldFreezeT = false;
+static Handle s_FreezeTimer = null;
 
 //OnPluginStart
-public void Freezebomb_OnPluginStart()
+public void FreezeBomb_OnPluginStart()
 {
-  HookEvent("round_prestart", Freezebomb_Reset, EventHookMode_Post);
+  HookEvent("round_prestart", FreezeBomb_Reset, EventHookMode_Post);
 }
 
-public void Freezebomb_ToggleFreezeBomb()
+public void FreezeBomb_ToggleFreezeBomb()
 {
   //Freezebomb Prisoners
-  shouldFreezeT = !shouldFreezeT;
+  s_ShouldFreezeT = !s_ShouldFreezeT;
   ServerCommand("sm_freezebomb @t"); //Toggle freezebomb status
   
-  if (shouldFreezeT == false) {
+  if (s_ShouldFreezeT == false) {
     //We stopped an already running timer
-    if (freezeTimer != null) {
-      KillTimer(freezeTimer);
-      freezeTimer = null;
-    }
+    delete s_FreezeTimer;
     
     //Reenable unlockables
-    toggleUnlockables(CS_TEAM_T, 1);
+    ToggleUnlockables(CS_TEAM_T, 1);
   }
   else {
     //Disable unlockables
-    toggleUnlockables(CS_TEAM_T, 0);
-    freezeTimer = CreateTimer(GetConVarFloat(FindConVar("sm_freeze_duration")) + 0.5, Freezebomb_ReportFreezebombResults);
+    ToggleUnlockables(CS_TEAM_T, 0);
+    s_FreezeTimer = CreateTimer(FindConVar("sm_freeze_duration").FloatValue + 0.5, FreezeBomb_ReportFreezebombResults);
   }
   
   CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "Gamemode - Freezebomb");
 }
 
 //Report Freezebomb results
-public Action Freezebomb_ReportFreezebombResults(Handle timer)
+public Action FreezeBomb_ReportFreezebombResults(Handle timer)
 {
+  s_FreezeTimer = null;
+  
   //Check to see if timer should be stopped
-  if (!shouldFreezeT) {
+  if (!s_ShouldFreezeT) {
     return Plugin_Handled;
   }
   
   //Reenable unlockables
-  toggleUnlockables(CS_TEAM_T, 1);
+  ToggleUnlockables(CS_TEAM_T, 1);
   
   //Report results
   int highestClient = -1;
@@ -90,14 +88,14 @@ public Action Freezebomb_ReportFreezebombResults(Handle timer)
     CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "Lowest Freezebomb", lowestClient);
   
   //Disable freeze bool
-  shouldFreezeT = false;
+  s_ShouldFreezeT = false;
   
   return Plugin_Handled;
 }
 
 //Round pre start
-public void Freezebomb_Reset(Handle event, const char[] name, bool dontBroadcast)
+public void FreezeBomb_Reset(Handle event, const char[] name, bool dontBroadcast)
 {
-  shouldFreezeT = false;
-  freezeTimer = null;
+  s_ShouldFreezeT = false;
+  s_FreezeTimer = null;
 }

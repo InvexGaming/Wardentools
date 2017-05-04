@@ -1,6 +1,6 @@
 /*
 * Highlight players with various colours that can be used by other modules
-* Prefix: highlights_
+* Prefix: Highlights_
 */
 
 #if defined _wardentools_highlights_included
@@ -12,8 +12,8 @@
 #include "wardentools/colours.sp"
 
 //Static Globals
-static bool isHighlighted[MAXPLAYERS+1] = false;
-static int highlightedColour[MAXPLAYERS+1] = COLOURS_DEFAULT;
+static bool s_IsHighlighted[MAXPLAYERS+1] = false;
+static Colour s_HighlightedColour[MAXPLAYERS+1] = Colour_Default;
 
 //OnPluginStart
 public void Highlights_OnPluginStart()
@@ -25,7 +25,7 @@ public void Highlights_OnPluginStart()
 public void Highlights_OnClientPutInServer(int client)
 {
   //Disable highlighting
-  isHighlighted[client] = false;
+  s_IsHighlighted[client] = false;
 }
 
 //Round pre start
@@ -36,12 +36,12 @@ public void Highlights_Reset(Handle event, const char[] name, bool dontBroadcast
       continue;
     
     //Unhighlight
-    if (isHighlighted[i] && IsPlayerAlive(i)) {
-      SetEntityRenderColor(i, colours_full[0], colours_full[1], colours_full[2], colours_full[3]);
+    if (s_IsHighlighted[i] && IsPlayerAlive(i)) {
+      SetEntityRenderColor(i, g_Colours_Full[0], g_Colours_Full[1], g_Colours_Full[2], g_Colours_Full[3]);
     }
     
-    isHighlighted[i] = false;
-    highlightedColour[i] = COLOURS_DEFAULT;
+    s_IsHighlighted[i] = false;
+    s_HighlightedColour[i] = Colour_Default;
   }
 }
 
@@ -53,7 +53,7 @@ public void Highlights_ClearHighlights()
     if (IsClientInGame(i) && IsPlayerAlive(i)) {
       if (GetClientTeam(i) == CS_TEAM_T) {
         Highlights_SetIsHighlighted(i, false);
-        Highlights_SetHighlightedColour(i, COLOURS_DEFAULT);
+        Highlights_SetHighlightedColour(i, Colour_Default);
       }
     }
   }
@@ -63,22 +63,22 @@ public void Highlights_ClearHighlights()
 
 public bool Highlights_IsHighlighted(int client)
 {
-  return isHighlighted[client];
+  return s_IsHighlighted[client];
 }
 
 public void Highlights_SetIsHighlighted(int client, bool value)
 {
-  isHighlighted[client] = value;
+  s_IsHighlighted[client] = value;
 }
 
-public int Highlights_GetHighlightedColour(int client)
+public Colour Highlights_GetHighlightedColour(int client)
 {
-  return highlightedColour[client];
+  return s_HighlightedColour[client];
 }
 
-public void Highlights_SetHighlightedColour(int client, int colourCode)
+public void Highlights_SetHighlightedColour(int client, Colour colourCode)
 {
-  highlightedColour[client] = colourCode;
+  s_HighlightedColour[client] = colourCode;
   int colour[4];
   Colours_GetColourFromColourCode(colourCode, colour);
   

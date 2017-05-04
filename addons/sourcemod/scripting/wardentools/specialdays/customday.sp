@@ -1,25 +1,25 @@
-public void Specialdays_Init_CustomDay()
+public void SpecialDays_Init_CustomDay()
 {
-  Specialdays_RegisterDay("Custom Special Day", Specialdays_CustomDay_Start, Specialdays_CustomDay_End, Specialdays_CustomDay_RestrictionCheck, Specialdays_CustomDay_OnClientPutInServer, true, false);
+  SpecialDays_RegisterDay("Custom Special Day", SpecialDays_CustomDay_Start, SpecialDays_CustomDay_End, SpecialDays_CustomDay_RestrictionCheck, SpecialDays_CustomDay_OnClientPutInServer, true, false);
 }
 
-public void Specialdays_CustomDay_Start() 
+public void SpecialDays_CustomDay_Start() 
 {
   CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Custom");
 }
 
-public void Specialdays_CustomDay_End() 
+public void SpecialDays_CustomDay_End() 
 {
   //Nop
 }
 
-public bool Specialdays_CustomDay_RestrictionCheck(int client) 
+public bool SpecialDays_CustomDay_RestrictionCheck(int client) 
 {
   //Passed with no failures
   return true;
 }
 
-public void Specialdays_CustomDay_OnClientPutInServer() 
+public void SpecialDays_CustomDay_OnClientPutInServer() 
 {
   //Nop
 }

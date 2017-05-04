@@ -2,124 +2,119 @@
 #define KILL_SOUND "invex_gaming/jb_wardentools/orch_hit_csharp_short_clipped.mp3"
 
 //Convars
-ConVar cvar_specialdays_oneinthechamber_tptime = null;
-ConVar cvar_specialdays_oneinthechamber_hidetime = null;
-ConVar cvar_specialdays_oneinthechamber_slaytime = null;
-ConVar cvar_specialdays_oneinthechamber_autobeacontime = null;
+ConVar g_Cvar_SpecialDays_OneInTheChamber_TeleportTime = null;
+ConVar g_Cvar_SpecialDays_OneInTheChamber_HideTime = null;
+ConVar g_Cvar_SpecialDays_OneInTheChamber_SlayTime = null;
+ConVar g_Cvar_SpecialDays_OneInTheChamber_AutoBeaconTime = null;
 
 //Global statics
-static bool isEnabled = false;
-static const char designatedWeapon[32] = "weapon_deagle";
-static int numKills[MAXPLAYERS+1] = {0, ...};
-static int numBullets[MAXPLAYERS+1] = {-1, ...};
-static bool isPastHideTime = false;
-static Handle freeforallRoundEndHandle = null;
-static Handle freeforallStartTimer = null;
-static bool isFFARoundStalemate = false;
-static Handle autoBeaconHandle = null;
+static bool s_IsEnabled = false;
+static const char s_DesignatedWeapon[32] = "weapon_deagle";
+static int s_NumKills[MAXPLAYERS+1] = {0, ...};
+static int s_NumBullets[MAXPLAYERS+1] = {-1, ...};
+static bool s_IsPastHideTime = false;
+static Handle s_FreeForAllRoundEndHandle = null;
+static Handle s_FreeForAllStartTimer = null;
+static bool s_IsFfaRoundStalemate = false;
+static Handle s_AutoBeaconHandle = null;
 
-public void Specialdays_Init_Oneinthechamber()
+public void SpecialDays_Init_OneInTheChamber()
 {
-  Specialdays_RegisterDay("One in the Chamber Day", Specialdays_Oneinthechamber_Start, Specialdays_Oneinthechamber_End, Specialdays_Oneinthechamber_RestrictionCheck, Specialdays_Oneinthechamber_OnClientPutInServer, false, false);
+  SpecialDays_RegisterDay("One in the Chamber Day", SpecialDays_OneInTheChamber_Start, SpecialDays_OneInTheChamber_End, SpecialDays_OneInTheChamber_RestrictionCheck, SpecialDays_OneInTheChamber_OnClientPutInServer, false, false);
   
   //Convars
-  cvar_specialdays_oneinthechamber_tptime = CreateConVar("sm_wt_specialdays_oneinthechamber_tptime", "10.0", "The amount of time before all players are teleported to start beacon (def. 10.0)");
-  cvar_specialdays_oneinthechamber_hidetime = CreateConVar("sm_wt_specialdays_oneinthechamber_hidetime", "60", "Number of seconds everyone has to hide (def. 60)");
-  cvar_specialdays_oneinthechamber_slaytime = CreateConVar("sm_wt_specialdays_oneinthechamber_slaytime", "420.0", "The amount of time before all players are slayed (def. 420.0)");
-  cvar_specialdays_oneinthechamber_autobeacontime = CreateConVar("sm_wt_specialdays_oneinthechamber_autobeacontime", "300.0", "The amount of time before all players are beaconed and told to actively hunt (def. 300.0)");
+  g_Cvar_SpecialDays_OneInTheChamber_TeleportTime = CreateConVar("sm_wt_specialdays_oneinthechamber_tptime", "10.0", "The amount of time before all players are teleported to start beacon (def. 10.0)");
+  g_Cvar_SpecialDays_OneInTheChamber_HideTime = CreateConVar("sm_wt_specialdays_oneinthechamber_hidetime", "60", "Number of seconds everyone has to hide (def. 60)");
+  g_Cvar_SpecialDays_OneInTheChamber_SlayTime = CreateConVar("sm_wt_specialdays_oneinthechamber_slaytime", "420.0", "The amount of time before all players are slayed (def. 420.0)");
+  g_Cvar_SpecialDays_OneInTheChamber_AutoBeaconTime = CreateConVar("sm_wt_specialdays_oneinthechamber_autobeacontime", "300.0", "The amount of time before all players are beaconed and told to actively hunt (def. 300.0)");
   
   //Hooks
-  HookEvent("player_spawn", Specialdays_Oneinthechamber_EventPlayerSpawn, EventHookMode_Post);
-  HookEvent("player_death", Specialdays_Oneinthechamber_EventPlayerDeath, EventHookMode_Post);
-  HookEvent("weapon_fire", Specialdays_Oneinthechamber_EventWeaponFire, EventHookMode_Post);
+  HookEvent("player_spawn", SpecialDays_OneInTheChamber_EventPlayerSpawn, EventHookMode_Post);
+  HookEvent("player_death", SpecialDays_OneInTheChamber_EventPlayerDeath, EventHookMode_Post);
+  HookEvent("weapon_fire", SpecialDays_OneInTheChamber_EventWeaponFire, EventHookMode_Post);
 }
 
-public void Specialdays_Oneinthechamber_Start()
+public void SpecialDays_OneInTheChamber_Start()
 {
-  isEnabled = true;
+  s_IsEnabled = true;
   
   //Remove radar
   for (int i = 1; i <= MaxClients; ++i) {
     if (IsClientConnected(i) && IsClientInGame(i) && IsPlayerAlive(i)) {
-      numKills[i] = 0;
-      numBullets[i] = -1;
-      Specialdays_Oneinthechamber_ApplyEffects(i);
+      s_NumKills[i] = 0;
+      s_NumBullets[i] = -1;
+      SpecialDays_OneInTheChamber_ApplyEffects(i);
     }
   }
   
   //Create timer to slay all players
-  freeforallRoundEndHandle = CreateTimer(GetConVarFloat(cvar_specialdays_oneinthechamber_slaytime) - GetTimeSinceRoundStart(), Specialdays_Oneinthechamber_GameEnd);
+  s_FreeForAllRoundEndHandle = CreateTimer(g_Cvar_SpecialDays_OneInTheChamber_SlayTime.FloatValue - GetTimeSinceRoundStart(), SpecialDays_OneInTheChamber_GameEnd);
   
   //Turn on friendly fire for FFA
-  SetConVarBool(FindConVar("mp_friendlyfire"), true);
-  SetConVarBool(FindConVar("mp_teammates_are_enemies"), true);
+  FindConVar("mp_friendlyfire").BoolValue = true;
+  FindConVar("mp_teammates_are_enemies").BoolValue = true;
   
   //Create timer for damage protection
-  Specialdays_SetDamageProtection(true, GetConVarFloat(cvar_specialdays_oneinthechamber_tptime) + GetConVarFloat(cvar_specialdays_oneinthechamber_hidetime));
+  SpecialDays_SetDamageProtection(true, g_Cvar_SpecialDays_OneInTheChamber_TeleportTime.FloatValue + g_Cvar_SpecialDays_OneInTheChamber_HideTime.FloatValue);
   
   //Create Timer for auto beacons
-  autoBeaconHandle = CreateTimer(GetConVarFloat(cvar_specialdays_oneinthechamber_autobeacontime) - GetTimeSinceRoundStart(), Specialdays_Oneinthechamber_AutoBeaconOn);
+  s_AutoBeaconHandle = CreateTimer(g_Cvar_SpecialDays_OneInTheChamber_AutoBeaconTime.FloatValue - GetTimeSinceRoundStart(), SpecialDays_OneInTheChamber_AutoBeaconOn);
   
   //Day message
-  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - One in the Chamber", RoundToNearest(GetConVarFloat(cvar_specialdays_oneinthechamber_tptime)), RoundToNearest(GetConVarFloat(cvar_specialdays_oneinthechamber_hidetime)));
+  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - One in the Chamber", RoundToNearest(g_Cvar_SpecialDays_OneInTheChamber_TeleportTime.FloatValue), RoundToNearest(g_Cvar_SpecialDays_OneInTheChamber_HideTime.FloatValue));
   
   //Show warning
-  Specialdays_ShowGameStartWarning(GetConVarFloat(cvar_specialdays_oneinthechamber_tptime) + GetConVarFloat(cvar_specialdays_oneinthechamber_hidetime), 5);
+  SpecialDays_ShowGameStartWarning(g_Cvar_SpecialDays_OneInTheChamber_TeleportTime.FloatValue + g_Cvar_SpecialDays_OneInTheChamber_HideTime.FloatValue, 5);
   
   //Create timer for start
-  freeforallStartTimer = CreateTimer(GetConVarFloat(cvar_specialdays_oneinthechamber_tptime) + GetConVarFloat(cvar_specialdays_oneinthechamber_hidetime), Specialdays_Oneinthechamber_GameStart);
+  s_FreeForAllStartTimer = CreateTimer(g_Cvar_SpecialDays_OneInTheChamber_TeleportTime.FloatValue + g_Cvar_SpecialDays_OneInTheChamber_HideTime.FloatValue, SpecialDays_OneInTheChamber_GameStart);
   
   //Teleport all players to warden beam
   int warden = GetWarden();
   if (warden != -1)
-    Specialdays_TeleportPlayers(warden, GetConVarFloat(cvar_specialdays_oneinthechamber_tptime), "One in the Chamber", Specialdays_Teleport_Start_All, TELEPORTTYPE_ALL);
+    SpecialDays_TeleportPlayers(warden, g_Cvar_SpecialDays_OneInTheChamber_TeleportTime.FloatValue, "One in the Chamber", SpecialDays_Teleport_Start_All, TeleportType_All);
 }
 
-public void Specialdays_Oneinthechamber_End()
+public void SpecialDays_OneInTheChamber_End()
 {
-  isEnabled = false;
+  s_IsEnabled = false;
   
-  if (freeforallRoundEndHandle != null)
-    delete freeforallRoundEndHandle;
+  delete s_FreeForAllRoundEndHandle;
+  delete s_FreeForAllStartTimer;
+  delete s_AutoBeaconHandle;
   
-  if (freeforallStartTimer != null)
-    delete freeforallStartTimer;
-    
-  if (autoBeaconHandle != null)
-    delete autoBeaconHandle;
+  s_IsPastHideTime = false;
+  s_IsFfaRoundStalemate = false;
   
-  isPastHideTime = false;
-  isFFARoundStalemate = false;
-  
-  SetConVarBool(FindConVar("mp_friendlyfire"), false);
-  SetConVarBool(FindConVar("mp_teammates_are_enemies"), false);
+  FindConVar("mp_friendlyfire").BoolValue = false;
+  FindConVar("mp_teammates_are_enemies").BoolValue = false;
 }
 
-public bool Specialdays_Oneinthechamber_RestrictionCheck()
+public bool SpecialDays_OneInTheChamber_RestrictionCheck()
 {
   //Passed with no failures
   return true;
 }
 
-public void Specialdays_Oneinthechamber_OnClientPutInServer(int client)
+public void SpecialDays_OneInTheChamber_OnClientPutInServer(int client)
 {
-  SDKHook(client, SDKHook_WeaponCanUse, Specialdays_Oneinthechamber_BlockPickup);
-  SDKHook(client, SDKHook_OnTakeDamage, Specialdays_Oneinthechamber_OnTakeDamage);
-  SDKHook(client, SDKHook_WeaponEquip, Specialdays_Oneinthechamber_WeaponEquip);
+  SDKHook(client, SDKHook_WeaponCanUse, SpecialDays_OneInTheChamber_BlockPickup);
+  SDKHook(client, SDKHook_OnTakeDamage, SpecialDays_OneInTheChamber_OnTakeDamage);
+  SDKHook(client, SDKHook_WeaponEquip, SpecialDays_OneInTheChamber_WeaponEquip);
 }
 
 //Called when a player takes damage
-public Action Specialdays_Oneinthechamber_OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3])
+public Action SpecialDays_OneInTheChamber_OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3])
 {
   //Ignore invalid entities
   if (!(victim >= 0 && victim <= MaxClients) || !(attacker >= 0 && attacker <= MaxClients)) {
     return Plugin_Continue;
   }
 
-  if (isEnabled) {
+  if (s_IsEnabled) {
     if (attacker != 0) {
       //Set to kill damage
-      damage = 9999.0;
+      damage = 1337.0;
       
       return Plugin_Changed;
     }
@@ -129,9 +124,9 @@ public Action Specialdays_Oneinthechamber_OnTakeDamage(int victim, int &attacker
 }
 
 //Player death hook
-public Action Specialdays_Oneinthechamber_EventPlayerDeath(Event event, const char[] name, bool dontBroadcast)
+public Action SpecialDays_OneInTheChamber_EventPlayerDeath(Event event, const char[] name, bool dontBroadcast)
 {
-  if (!isEnabled)
+  if (!s_IsEnabled)
     return Plugin_Continue;
   
   //Award bullet to killer
@@ -142,20 +137,20 @@ public Action Specialdays_Oneinthechamber_EventPlayerDeath(Event event, const ch
     EmitSoundToClientAny(attacker, KILL_SOUND, attacker, SNDCHAN_USER_BASE, SNDLEVEL_RAIDSIREN);
   
     //Increment number kills
-    ++numKills[attacker];
+    ++s_NumKills[attacker];
   
     if (GetPlayerWeaponSlot(attacker, CS_SLOT_SECONDARY) != -1) {
       int weaponEntity = GetPlayerWeaponSlot(attacker, CS_SLOT_SECONDARY);
       if (weaponEntity != -1) {
         char weaponClassName[64];
         if (GetEdictClassname(weaponEntity, weaponClassName, sizeof(weaponClassName))) {
-          if (StrEqual(weaponClassName, designatedWeapon)) {
+          if (StrEqual(weaponClassName, s_DesignatedWeapon)) {
             //Right weapon, give them 1 bullet
-            Handle pack;
-            CreateDataTimer(0.0, Specialdays_Oneinthechamber_DelayedSetAmmo, pack);
-            WritePackCell(pack, EntIndexToEntRef(attacker));
-            WritePackCell(pack, EntIndexToEntRef(weaponEntity));
-            WritePackCell(pack, 1);
+            DataPack pack;
+            CreateDataTimer(0.0, SpecialDays_OneInTheChamber_DelayedSetAmmo, pack);
+            pack.WriteCell(EntIndexToEntRef(attacker));
+            pack.WriteCell(EntIndexToEntRef(weaponEntity));
+            pack.WriteCell(1);
           }
         }
       }
@@ -173,41 +168,41 @@ public Action Specialdays_Oneinthechamber_EventPlayerDeath(Event event, const ch
   }
   
   //Check if there is only 1 remaining player
-  if (numAlive == 1 && lastAliveClient != -1 && !isFFARoundStalemate) {
-    CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Free For All Winner", lastAliveClient, "One in the Chamber", numKills[lastAliveClient]);
+  if (numAlive == 1 && lastAliveClient != -1 && !s_IsFfaRoundStalemate) {
+    CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Free For All Winner", lastAliveClient, "One in the Chamber", s_NumKills[lastAliveClient]);
   }
   
   return Plugin_Continue;
 }
 
 //We need a delay so that GetClip1Ammo(weapon) returns correct amount
-public Action Specialdays_Oneinthechamber_DelayedSetAmmo(Handle timer, Handle pack)
+public Action SpecialDays_OneInTheChamber_DelayedSetAmmo(Handle timer, DataPack pack)
 {
   int client;
   int weapon;
   int ammo;
   
-  ResetPack(pack);
+  pack.Reset();
   
-  client = EntRefToEntIndex(ReadPackCell(pack)); 
-  weapon = EntRefToEntIndex(ReadPackCell(pack)); 
-  ammo = GetClip1Ammo(weapon) + ReadPackCell(pack); //current ammo + offset
-
+  client = EntRefToEntIndex(pack.ReadCell());
+  weapon = EntRefToEntIndex(pack.ReadCell()); 
+  ammo = GetClip1Ammo(weapon) + pack.ReadCell(); //current ammo + offset
+  
   //Correct num bullets
-  numBullets[client] = ammo;
+  s_NumBullets[client] = ammo;
   
   //Set ammo
-  Handle pack2;
-  CreateDataTimer(0.0, Specialdays_Oneinthechamber_SetAmmo, pack2);
-  WritePackCell(pack2, EntIndexToEntRef(client));
-  WritePackCell(pack2, EntIndexToEntRef(weapon));
-  WritePackCell(pack2, ammo);
+  DataPack pack2;
+  CreateDataTimer(0.0, SpecialDays_OneInTheChamber_SetAmmo, pack2);
+  pack2.WriteCell(EntIndexToEntRef(client));
+  pack2.WriteCell(EntIndexToEntRef(weapon));
+  pack2.WriteCell(ammo);
 }
 
 //Player spawn hook
-public Action Specialdays_Oneinthechamber_EventPlayerSpawn(Event event, const char[] name, bool dontBroadcast)
+public Action SpecialDays_OneInTheChamber_EventPlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
-  if (!isEnabled)
+  if (!s_IsEnabled)
     return Plugin_Continue;
     
   int client = GetClientOfUserId(event.GetInt("userid"));
@@ -215,14 +210,14 @@ public Action Specialdays_Oneinthechamber_EventPlayerSpawn(Event event, const ch
   if (!IsClientConnected(client) || !IsClientInGame(client) || !IsPlayerAlive(client))
     return Plugin_Continue;
   
-  Specialdays_Oneinthechamber_ApplyEffects(client);
+  SpecialDays_OneInTheChamber_ApplyEffects(client);
   
   return Plugin_Continue;
 }
 
-public Action Specialdays_Oneinthechamber_EventWeaponFire(Event event, const char[] name, bool dontBroadcast)
+public Action SpecialDays_OneInTheChamber_EventWeaponFire(Event event, const char[] name, bool dontBroadcast)
 {
-  if (!isEnabled)
+  if (!s_IsEnabled)
     return Plugin_Continue;
     
   int client = GetClientOfUserId(event.GetInt("userid"));
@@ -230,14 +225,14 @@ public Action Specialdays_Oneinthechamber_EventWeaponFire(Event event, const cha
   event.GetString("weapon", weaponClassName, sizeof(weaponClassName));
   
   //Update bullets for shooter after a shot
-  if (StrEqual(weaponClassName, designatedWeapon)) {
+  if (StrEqual(weaponClassName, s_DesignatedWeapon)) {
     if (GetPlayerWeaponSlot(client, CS_SLOT_SECONDARY) != -1) {
       int weaponEntity = GetPlayerWeaponSlot(client, CS_SLOT_SECONDARY);
       if (weaponEntity != -1) {
-        Handle pack;
-        CreateDataTimer(0.2, Specialdays_Oneinthechamber_UpdateBullets, pack);
-        WritePackCell(pack, EntIndexToEntRef(client));
-        WritePackCell(pack, EntIndexToEntRef(weaponEntity));
+        DataPack pack;
+        CreateDataTimer(0.2, SpecialDays_OneInTheChamber_UpdateBullets, pack);
+        pack.WriteCell(EntIndexToEntRef(client));
+        pack.WriteCell(EntIndexToEntRef(weaponEntity));
       }
     }
   }
@@ -246,29 +241,29 @@ public Action Specialdays_Oneinthechamber_EventWeaponFire(Event event, const cha
 }
 
 //Update bullet count
-public Action Specialdays_Oneinthechamber_UpdateBullets(Handle timer, Handle pack)
+public Action SpecialDays_OneInTheChamber_UpdateBullets(Handle timer, DataPack pack)
 {
-  if (!isEnabled)
+  if (!s_IsEnabled)
     return Plugin_Handled;
     
   int client; 
   int weapon;
   
-  ResetPack(pack);
+  pack.Reset();
   
-  client = EntRefToEntIndex(ReadPackCell(pack));
-  weapon = EntRefToEntIndex(ReadPackCell(pack));
+  client = EntRefToEntIndex(pack.ReadCell());
+  weapon = EntRefToEntIndex(pack.ReadCell());
   
   if (client == INVALID_ENT_REFERENCE || weapon == INVALID_ENT_REFERENCE)
     return Plugin_Handled;
   
-  numBullets[client] = GetClip1Ammo(weapon);
+  s_NumBullets[client] = GetClip1Ammo(weapon);
   
   return Plugin_Handled;
 }
 
 //Apply special day effects
-void Specialdays_Oneinthechamber_ApplyEffects(int client)
+void SpecialDays_OneInTheChamber_ApplyEffects(int client)
 {
   CreateTimer(0.0, RemoveRadar, client);
   
@@ -276,44 +271,46 @@ void Specialdays_Oneinthechamber_ApplyEffects(int client)
   StripWeapons(client);
   GivePlayerItem(client, "weapon_knife");
   
-  if (isPastHideTime) {
+  if (s_IsPastHideTime) {
     //Client will be given 1 bullet
-    numBullets[client] = 1;
+    s_NumBullets[client] = 1;
     
     //Give player their weapon and set ammo to 1 bullet
-    int weaponEntity = GivePlayerItem(client, designatedWeapon);
+    int weaponEntity = GivePlayerItem(client, s_DesignatedWeapon);
     
-    Handle pack;
-    CreateDataTimer(0.0, Specialdays_Oneinthechamber_SetAmmo, pack);
-    WritePackCell(pack, EntIndexToEntRef(client));
-    WritePackCell(pack, EntIndexToEntRef(weaponEntity));
-    WritePackCell(pack, 1);
+    DataPack pack;
+    CreateDataTimer(0.0, SpecialDays_OneInTheChamber_SetAmmo, pack);
+    pack.WriteCell(EntIndexToEntRef(client));
+    pack.WriteCell(EntIndexToEntRef(weaponEntity));
+    pack.WriteCell(1);
   }
 }
 
 //Timer called once game starts
-public Action Specialdays_Oneinthechamber_GameStart(Handle timer)
+public Action SpecialDays_OneInTheChamber_GameStart(Handle timer)
 {
-  isPastHideTime = true; //no longer hide time
+  s_FreeForAllStartTimer = null; //Resolve dangling handle
+  
+  s_IsPastHideTime = true; //no longer hide time
 
   for (int i = 1; i <= MaxClients; ++i) {
     if (IsClientConnected(i) && IsClientInGame(i) && IsPlayerAlive(i)) {
-      Specialdays_Oneinthechamber_ApplyEffects(i);
+      SpecialDays_OneInTheChamber_ApplyEffects(i);
     }
   }
   
   CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - One in the Chamber Started");
   
-  freeforallStartTimer = null;
-  
   return Plugin_Handled;
 }
 
 //Timer called once game ends
-public Action Specialdays_Oneinthechamber_GameEnd(Handle timer)
+public Action SpecialDays_OneInTheChamber_GameEnd(Handle timer)
 {
+  s_FreeForAllRoundEndHandle = null; //Resolve dangling handle
+  
   //Set FFA to stalement so no winner is picked based on deaths
-  isFFARoundStalemate = true;
+  s_IsFfaRoundStalemate = true;
 
   for (int i = 1; i <= MaxClients; ++i) {
     if (IsClientInGame(i) && IsPlayerAlive(i)) {
@@ -323,17 +320,14 @@ public Action Specialdays_Oneinthechamber_GameEnd(Handle timer)
   
   //Print round end message
   CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - One in the Chamber Round Over");
-  
-  //Reset timer handle
-  freeforallRoundEndHandle = null;
 }
 
 //Auto beacon all alive players
-public Action Specialdays_Oneinthechamber_AutoBeaconOn(Handle timer)
+public Action SpecialDays_OneInTheChamber_AutoBeaconOn(Handle timer)
 {
-  autoBeaconHandle = null;
+  s_AutoBeaconHandle = null; //Resolve dangling handle
   
-  if (!isEnabled)
+  if (!s_IsEnabled)
     return Plugin_Handled;
     
   ServerCommand("sm_beacon @alive");
@@ -343,9 +337,9 @@ public Action Specialdays_Oneinthechamber_AutoBeaconOn(Handle timer)
 }
 
 //Block pick of of disallowed guns for entire round
-public Action Specialdays_Oneinthechamber_BlockPickup(int client, int weapon)
+public Action SpecialDays_OneInTheChamber_BlockPickup(int client, int weapon)
 {
-  if (!isEnabled)
+  if (!s_IsEnabled)
     return Plugin_Continue;
 
   char weaponClass[64];
@@ -354,16 +348,16 @@ public Action Specialdays_Oneinthechamber_BlockPickup(int client, int weapon)
   //Only knife and gun allowed
   if (StrEqual(weaponClass, "weapon_knife"))
     return Plugin_Continue;
-  else if (StrEqual(weaponClass, designatedWeapon) && isPastHideTime) //disallow deagle pick ups in hide time
+  else if (StrEqual(weaponClass, s_DesignatedWeapon) && s_IsPastHideTime) //disallow deagle pick ups in hide time
     return Plugin_Continue;
 
   return Plugin_Handled;
 }
 
 //Use to ensure newly picked up guns from spawners provide correct number of bullets
-public Action Specialdays_Oneinthechamber_WeaponEquip(int client, int weapon)
+public Action SpecialDays_OneInTheChamber_WeaponEquip(int client, int weapon)
 {
-  if (!isEnabled)
+  if (!s_IsEnabled)
     return Plugin_Continue;
 
   char weaponClass[64];
@@ -371,14 +365,14 @@ public Action Specialdays_Oneinthechamber_WeaponEquip(int client, int weapon)
   
   if (StrEqual(weaponClass, "weapon_knife"))
     return Plugin_Continue;
-  else if (StrEqual(weaponClass, designatedWeapon)) {
+  else if (StrEqual(weaponClass, s_DesignatedWeapon)) {
     //Set to correct number of bullets
-    if (numBullets[client] != -1) {
-      Handle pack;
-      CreateDataTimer(0.0, Specialdays_Oneinthechamber_SetAmmo, pack);
-      WritePackCell(pack, EntIndexToEntRef(client));
-      WritePackCell(pack, EntIndexToEntRef(weapon));
-      WritePackCell(pack, numBullets[client]);
+    if (s_NumBullets[client] != -1) {
+      DataPack pack;
+      CreateDataTimer(0.0, SpecialDays_OneInTheChamber_SetAmmo, pack);
+      pack.WriteCell(EntIndexToEntRef(client));
+      pack.WriteCell(EntIndexToEntRef(weapon));
+      pack.WriteCell(s_NumBullets[client]);
     }
     
     return Plugin_Continue;
@@ -390,10 +384,10 @@ public Action Specialdays_Oneinthechamber_WeaponEquip(int client, int weapon)
 //Block dropping of weapons
 public Action CS_OnCSWeaponDrop(int client, int weaponIndex)
 {
-  if (!isEnabled)
+  if (!s_IsEnabled)
     return Plugin_Continue;
     
-  if (!isPastHideTime)
+  if (!s_IsPastHideTime)
     return Plugin_Continue;
   
   return Plugin_Handled;
@@ -404,17 +398,17 @@ stock int GetClip1Ammo(int weapon)
   return GetEntProp(weapon, Prop_Send, "m_iClip1");
 }
 
-public Action Specialdays_Oneinthechamber_SetAmmo(Handle timer, Handle pack)
+public Action SpecialDays_OneInTheChamber_SetAmmo(Handle timer, DataPack pack)
 {
   int client; 
   int weapon;
   int ammo;
   
-  ResetPack(pack);
+  pack.Reset();
   
-  client = EntRefToEntIndex(ReadPackCell(pack)); 
-  weapon = EntRefToEntIndex(ReadPackCell(pack)); 
-  ammo = ReadPackCell(pack); 
+  client = EntRefToEntIndex(pack.ReadCell());
+  weapon = EntRefToEntIndex(pack.ReadCell()); 
+  ammo = pack.ReadCell(); 
   
   if (IsClientInGame(client) && IsPlayerAlive(client)) {
     

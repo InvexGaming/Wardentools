@@ -6,11 +6,10 @@
 #include "warden.inc"
 
 //Global Defines
-#define WT_VERSION "2.07"
+#define WT_VERSION "2.10"
 #define CHAT_TAG_PREFIX "[{pink}WT{default}] "
 
 #define HIDE_RADAR_CSGO 1<<12
-#define MAX_WEAPONS 44
 
 //Returns true if round is a special day, false otherwise
 native bool WardenTools_IsSpecialDay();
@@ -29,7 +28,7 @@ stock int GetWarden()
 }
 
 //Toggle unlockables from store
-stock void toggleUnlockables(int team, int value)
+stock void ToggleUnlockables(int team, int value)
 {
   ConVar jetpack = null;
   ConVar bunnyhop = null;
@@ -121,7 +120,7 @@ stock void setAndPreserveClanTag(int client, char[] newClanTag, char[][] clantag
 
 //Strip weapons
 stock void StripWeapons(int client) {
-  for (int i = 0; i < MAX_WEAPONS; i++) { 
+  for (int i = 0; i < GetEntPropArraySize(client, Prop_Send, "m_hMyWeapons"); ++i) {
     int index = GetEntPropEnt(client, Prop_Send, "m_hMyWeapons", i);
     
     if(index && IsValidEdict(index))

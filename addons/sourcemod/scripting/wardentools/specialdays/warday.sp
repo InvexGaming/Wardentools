@@ -1,39 +1,38 @@
 //Convars
-ConVar cvar_specialdays_warday_tptime = null;
+ConVar g_Cvar_SpecialDays_WarDay_TeleportTime = null;
 
-public void Specialdays_Init_Warday()
+public void SpecialDays_Init_WarDay()
 {
-  Specialdays_RegisterDay("Warday", Specialdays_Warday_Start, Specialdays_Warday_End, Specialdays_Warday_RestrictionCheck, Specialdays_Warday_OnClientPutInServer, false, false);
+  SpecialDays_RegisterDay("Warday", SpecialDays_WarDay_Start, SpecialDays_WarDay_End, SpecialDays_WarDay_RestrictionCheck, SpecialDays_WarDay_OnClientPutInServer, false, false);
   
-  cvar_specialdays_warday_tptime = CreateConVar("sm_wt_specialdays_warday_tptime", "30.0", "The amount of time before prisoners are teleported to start beacon (def. 30.0)");
+  g_Cvar_SpecialDays_WarDay_TeleportTime = CreateConVar("sm_wt_specialdays_warday_tptime", "30.0", "The amount of time before prisoners are teleported to start beacon (def. 30.0)");
 }
 
-public void Specialdays_Warday_Start() 
+public void SpecialDays_WarDay_Start() 
 {
-  
-  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Warday", RoundToNearest(GetConVarFloat(cvar_specialdays_warday_tptime)));
+  CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Warday", RoundToNearest(g_Cvar_SpecialDays_WarDay_TeleportTime.FloatValue));
   
   //Create timer for damage protection
-  Specialdays_SetDamageProtection(true, GetConVarFloat(cvar_specialdays_warday_tptime));
+  SpecialDays_SetDamageProtection(true, g_Cvar_SpecialDays_WarDay_TeleportTime.FloatValue);
   
   //Teleport all players to warden
   int warden = GetWarden();
   if (warden != -1)
-    Specialdays_TeleportPlayers(warden, GetConVarFloat(cvar_specialdays_warday_tptime), "warday", Specialdays_Teleport_Start_T, TELEPORTTYPE_T);
+    SpecialDays_TeleportPlayers(warden, g_Cvar_SpecialDays_WarDay_TeleportTime.FloatValue, "warday", SpecialDays_Teleport_Start_T, TeleportType_T);
 }
 
-public void Specialdays_Warday_End() 
+public void SpecialDays_WarDay_End() 
 {
   //nop
 }
 
-public bool Specialdays_Warday_RestrictionCheck() 
+public bool SpecialDays_WarDay_RestrictionCheck() 
 {
   //Passed with no failures
   return true;
 }
 
-public void Specialdays_Warday_OnClientPutInServer() 
+public void SpecialDays_WarDay_OnClientPutInServer() 
 {
   //Nop
 }

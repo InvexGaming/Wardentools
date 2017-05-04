@@ -1,6 +1,6 @@
 /*
 * Slap game mode
-* Prefix: slap_
+* Prefix: Slap_
 */
 
 #if defined _wardentools_slap_included

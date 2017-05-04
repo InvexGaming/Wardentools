@@ -1,6 +1,6 @@
 /*
 * Priority Speaker
-* Prefix: priorityspeaker_
+* Prefix: PrioritySpeaker_
 */
 
 #if defined _wardentools_priorityspeaker_included
@@ -11,32 +11,32 @@
 #include <wardentools>
 
 //OnPluginStart
-public void Priorityspeaker_OnPluginStart()
+public void PrioritySpeaker_OnPluginStart()
 {
-  HookEvent("round_prestart", Priorityspeaker_Reset, EventHookMode_Post);
+  HookEvent("round_prestart", PrioritySpeaker_Reset, EventHookMode_Post);
 }
 
 //Round pre start
-public void Priorityspeaker_Reset(Handle event, const char[] name, bool dontBroadcast)
+public void PrioritySpeaker_Reset(Handle event, const char[] name, bool dontBroadcast)
 {
   //Disable priority speaker for new wardens
   ConVar priorityToggle = FindConVar("sm_wardentalk2_enabled");
   
   if (priorityToggle != null) {
-    SetConVarBool(priorityToggle, false);
+    priorityToggle.BoolValue = false;
   }
 }
 
-public void Priorityspeaker_Toggle()
+public void PrioritySpeaker_Toggle()
 {
   //Toggle Cvar value
   ConVar priorityToggle = FindConVar("sm_wardentalk2_enabled");
   if (priorityToggle != null) {
-    SetConVarBool(priorityToggle, !GetConVarBool(priorityToggle));
+    priorityToggle.BoolValue = !priorityToggle.BoolValue;
   }
   
   //Print messages
-  if (GetConVarBool(priorityToggle))
+  if (priorityToggle.BoolValue)
     CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "Priority Talk Toggle", "green", "enabled");
   else
     CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "Priority Talk Toggle", "darkred", "disabled");

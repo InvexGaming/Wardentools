@@ -1,6 +1,6 @@
 /*
 * Selects colours that can be used by other modules
-* Prefix: colours_
+* Prefix: Colours_
 */
 
 #if defined _wardentools_colours_included
@@ -11,112 +11,115 @@
 #include <wardentools>
 
 //Defines
-#define COLOURS_DEFAULT 0
-#define COLOURS_RED 1
-#define COLOURS_GREEN 2
-#define COLOURS_BLUE 3
-#define COLOURS_PURPLE 4
-#define COLOURS_YELLOW 5
-#define COLOURS_CYAN 6
-#define COLOURS_PINK 7
-#define COLOURS_ORANGE 8
-#define COLOURS_WHITE 9
-#define COLOURS_BLACK 10
+enum Colour
+{
+  Colour_Default,
+  Colour_Red,
+  Colour_Green,
+  Colour_Blue,
+  Colour_Purple,
+  Colour_Yellow,
+  Colour_Cyan,
+  Colour_Pink,
+  Colour_Orange,
+  Colour_White,
+  Colour_Black
+};
 
 //Proper Globals
-int colours_full[4] = {255, 255, 255, 255};
-int colours_red[4] = {255, 0, 0, 200};
-int colours_green[4] = {0, 255, 0, 200};
-int colours_blue[4] = {0, 0, 255, 200};
-int colours_purple[4] = {128, 112, 214, 200};
-int colours_yellow[4] = {255, 255, 0, 200};
-int colours_cyan[4] = {0, 255, 255, 200};
-int colours_pink[4] = {255, 105, 180, 200};
-int colours_orange[4] = {255, 140, 0, 200};
-int colours_white[4] = {254, 254, 254, 200};
-int colours_black[4] = {1, 1, 1, 200};
+int g_Colours_Full[] = {255, 255, 255, 255};
+int g_Colours_Red[] = {255, 0, 0, 200};
+int g_Colours_Green[] = {0, 255, 0, 200};
+int g_Colours_Blue[] = {0, 0, 255, 200};
+int g_Colours_Purple[] = {128, 112, 214, 200};
+int g_Colours_Yellow[] = {255, 255, 0, 200};
+int g_Colours_Cyan[] = {0, 255, 255, 200};
+int g_Colours_Pink[] = {255, 105, 180, 200};
+int g_Colours_Orange[] = {255, 140, 0, 200};
+int g_Colours_White[] = {254, 254, 254, 200};
+int g_Colours_Black[] = {1, 1, 1, 200};
 
-int colours_current[4] = {255, 0, 0, 200}; //red is default
-int colours_currentColourCode = COLOURS_RED;
+int g_Colours_Current[] = {255, 0, 0, 200}; //red is default
+Colour g_Colours_CurrentColourCode = Colour_Red;
 
 //Getters/Setters
 
 //Set Colour
 public void Colours_SetCurrentColour(const int newColour[4])
 {
-  colours_current[0] = newColour[0];
-  colours_current[1] = newColour[1];
-  colours_current[2] = newColour[2];
-  colours_current[3] = newColour[3];
+  g_Colours_Current[0] = newColour[0];
+  g_Colours_Current[1] = newColour[1];
+  g_Colours_Current[2] = newColour[2];
+  g_Colours_Current[3] = newColour[3];
 }
 
 //Colour code to colours
-public void Colours_GetColourFromColourCode(int colourCode, int colour[4])
+public void Colours_GetColourFromColourCode(Colour colourCode, int colour[4])
 {
-  if (colourCode == COLOURS_RED) {
-    colour[0] = colours_red[0];
-    colour[1] = colours_red[1];
-    colour[2] = colours_red[2];
-    colour[3] = colours_red[3];
+  if (colourCode == Colour_Red) {
+    colour[0] = g_Colours_Red[0];
+    colour[1] = g_Colours_Red[1];
+    colour[2] = g_Colours_Red[2];
+    colour[3] = g_Colours_Red[3];
   }
-  else if (colourCode == COLOURS_GREEN) {
-    colour[0] = colours_green[0];
-    colour[1] = colours_green[1];
-    colour[2] = colours_green[2];
-    colour[3] = colours_green[3];
+  else if (colourCode == Colour_Green) {
+    colour[0] = g_Colours_Green[0];
+    colour[1] = g_Colours_Green[1];
+    colour[2] = g_Colours_Green[2];
+    colour[3] = g_Colours_Green[3];
   }
-  else if (colourCode == COLOURS_BLUE) {
-    colour[0] = colours_blue[0];
-    colour[1] = colours_blue[1];
-    colour[2] = colours_blue[2];
-    colour[3] = colours_blue[3];
+  else if (colourCode == Colour_Blue) {
+    colour[0] = g_Colours_Blue[0];
+    colour[1] = g_Colours_Blue[1];
+    colour[2] = g_Colours_Blue[2];
+    colour[3] = g_Colours_Blue[3];
   }
-  else if (colourCode == COLOURS_PURPLE) {
-    colour[0] = colours_purple[0];
-    colour[1] = colours_purple[1];
-    colour[2] = colours_purple[2];
-    colour[3] = colours_purple[3];
+  else if (colourCode == Colour_Purple) {
+    colour[0] = g_Colours_Purple[0];
+    colour[1] = g_Colours_Purple[1];
+    colour[2] = g_Colours_Purple[2];
+    colour[3] = g_Colours_Purple[3];
   }
-  else if (colourCode == COLOURS_YELLOW) {
-    colour[0] = colours_yellow[0];
-    colour[1] = colours_yellow[1];
-    colour[2] = colours_yellow[2];
-    colour[3] = colours_yellow[3];
+  else if (colourCode == Colour_Yellow) {
+    colour[0] = g_Colours_Yellow[0];
+    colour[1] = g_Colours_Yellow[1];
+    colour[2] = g_Colours_Yellow[2];
+    colour[3] = g_Colours_Yellow[3];
   }
-  else if (colourCode == COLOURS_CYAN) {
-    colour[0] = colours_cyan[0];
-    colour[1] = colours_cyan[1];
-    colour[2] = colours_cyan[2];
-    colour[3] = colours_cyan[3];
+  else if (colourCode == Colour_Cyan) {
+    colour[0] = g_Colours_Cyan[0];
+    colour[1] = g_Colours_Cyan[1];
+    colour[2] = g_Colours_Cyan[2];
+    colour[3] = g_Colours_Cyan[3];
   }
-  else if (colourCode == COLOURS_PINK) {
-    colour[0] = colours_pink[0];
-    colour[1] = colours_pink[1];
-    colour[2] = colours_pink[2];
-    colour[3] = colours_pink[3];
+  else if (colourCode == Colour_Pink) {
+    colour[0] = g_Colours_Pink[0];
+    colour[1] = g_Colours_Pink[1];
+    colour[2] = g_Colours_Pink[2];
+    colour[3] = g_Colours_Pink[3];
   }
-  else if (colourCode == COLOURS_ORANGE) {
-    colour[0] = colours_orange[0];
-    colour[1] = colours_orange[1];
-    colour[2] = colours_orange[2];
-    colour[3] = colours_orange[3];
+  else if (colourCode == Colour_Orange) {
+    colour[0] = g_Colours_Orange[0];
+    colour[1] = g_Colours_Orange[1];
+    colour[2] = g_Colours_Orange[2];
+    colour[3] = g_Colours_Orange[3];
   }
-  else if (colourCode == COLOURS_WHITE) {
-    colour[0] = colours_white[0];
-    colour[1] = colours_white[1];
-    colour[2] = colours_white[2];
-    colour[3] = colours_white[3];
+  else if (colourCode == Colour_White) {
+    colour[0] = g_Colours_White[0];
+    colour[1] = g_Colours_White[1];
+    colour[2] = g_Colours_White[2];
+    colour[3] = g_Colours_White[3];
   }
-  else if (colourCode == COLOURS_BLACK) {
-    colour[0] = colours_black[0];
-    colour[1] = colours_black[1];
-    colour[2] = colours_black[2];
-    colour[3] = colours_black[3];
+  else if (colourCode == Colour_Black) {
+    colour[0] = g_Colours_Black[0];
+    colour[1] = g_Colours_Black[1];
+    colour[2] = g_Colours_Black[2];
+    colour[3] = g_Colours_Black[3];
   }
   else { //includes COLOURS_DEFAULT
-    colour[0] = colours_full[0];
-    colour[1] = colours_full[1];
-    colour[2] = colours_full[2];
-    colour[3] = colours_full[3];
+    colour[0] = g_Colours_Full[0];
+    colour[1] = g_Colours_Full[1];
+    colour[2] = g_Colours_Full[2];
+    colour[3] = g_Colours_Full[3];
   }
 }

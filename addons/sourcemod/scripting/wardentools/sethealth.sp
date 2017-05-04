@@ -1,6 +1,6 @@
 /*
 * Manipulate player health (HP)
-* Prefix: sethealth_
+* Prefix: SetHealth_
 */
 
 #if defined _wardentools_sethealth_included
@@ -11,7 +11,7 @@
 #include <wardentools>
 #include <cstrike>
 
-public void Sethealth_ResetTHealth()
+public void SetHealth_ResetTHealth()
 {
   //Show message to server
   CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "Gametools - Set T Health", 100);

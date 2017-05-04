@@ -1,6 +1,6 @@
 /*
 * Spawns beams (particles) on the ground
-* Prefix: particlebeams_
+* Prefix: ParticleBeams_
 */
 
 #if defined _wardentools_particlebeams_included
@@ -24,17 +24,17 @@ enum CustomParticles
 }
 
 //Global
-int Particlebeams_List[MAX_PARTICLES][CustomParticles];
+int ParticleBeams_List[MAX_PARTICLES][CustomParticles];
 
 //Statics
-static int numParticleStyles = 0;
-static int curParticleStyle = 0;
+static int s_NumParticleStyles = 0;
+static int s_CurParticleStyle = 0;
 
 //OnPluginStart
-public void Particlebeams_OnPluginStart()
+public void ParticleBeams_OnPluginStart()
 {
-  ArrayList effectList = new ArrayList(MAX_PARTICLES);
-  ArrayList niceNameList = new ArrayList(MAX_PARTICLES);
+  ArrayList effectList = new ArrayList(64);
+  ArrayList niceNameList = new ArrayList(128);
   
   //Add the selectable particle effects
   effectList.PushString("beam_rainbow");
@@ -128,39 +128,41 @@ public void Particlebeams_OnPluginStart()
   niceNameList.PushString("Miscellaneous | Leaf (Spring)"); 
   
   //Set total number of particles
-  numParticleStyles = effectList.Length;
+  s_NumParticleStyles = effectList.Length;
   
-  for (int i = 0; i < numParticleStyles; ++i) {
-    Format(Particlebeams_List[i][szParticleName], PLATFORM_MAX_PATH, PARTICLE_PCF_FILE);
+  for (int i = 0; i < s_NumParticleStyles; ++i) {
+    Format(ParticleBeams_List[i][szParticleName], PLATFORM_MAX_PATH, PARTICLE_PCF_FILE);
     
     char buffer[PLATFORM_MAX_PATH];
     effectList.GetString(i, buffer, sizeof(buffer));
-    Format(Particlebeams_List[i][szEffectName], PLATFORM_MAX_PATH, buffer);
+    Format(ParticleBeams_List[i][szEffectName], PLATFORM_MAX_PATH, buffer);
     
     char niceNamebuffer[64];
     niceNameList.GetString(i, niceNamebuffer, sizeof(niceNamebuffer));
-    Format(Particlebeams_List[i][szNiceName], PLATFORM_MAX_PATH, niceNamebuffer);
+    Format(ParticleBeams_List[i][szNiceName], PLATFORM_MAX_PATH, niceNamebuffer);
   }
+  
+  delete effectList;
+  delete niceNameList;
 }
 
 //OnMapStart
-public void Particlebeams_OnMapStart()
+public void ParticleBeams_OnMapStart()
 {
-  for(int i=0;i<numParticleStyles;++i)
-  {
-    Particlebeams_List[i][iCacheID] = PrecacheGeneric(Particlebeams_List[i][szParticleName], true);
-    AddFileToDownloadsTable(Particlebeams_List[i][szParticleName]);
+  for(int i = 0; i < s_NumParticleStyles; ++i) {
+    ParticleBeams_List[i][iCacheID] = PrecacheGeneric(ParticleBeams_List[i][szParticleName], true);
+    AddFileToDownloadsTable(ParticleBeams_List[i][szParticleName]);
   }
 }
 
-public void Particlebeams_PlaceBeam(int client, float duration, float position[3])
+public void ParticleBeams_PlaceBeam(int client, float duration, float position[3])
 {
   int m_unEnt = CreateEntityByName("info_particle_system");
   
   if (IsValidEntity(m_unEnt))
   {
     DispatchKeyValue(m_unEnt, "start_active", "1");
-    DispatchKeyValue(m_unEnt, "effect_name", Particlebeams_List[curParticleStyle][szEffectName]);
+    DispatchKeyValue(m_unEnt, "effect_name", ParticleBeams_List[s_CurParticleStyle][szEffectName]);
     DispatchSpawn(m_unEnt);
 
     TeleportEntity(m_unEnt, position, NULL_VECTOR, NULL_VECTOR);
@@ -168,12 +170,12 @@ public void Particlebeams_PlaceBeam(int client, float duration, float position[3
     ActivateEntity(m_unEnt);
     
     //Create timer for removal
-    CreateTimer(duration, Particlebeams_RemoveParticle, EntIndexToEntRef(m_unEnt));
+    CreateTimer(duration, ParticleBeams_RemoveParticle, EntIndexToEntRef(m_unEnt));
   }
 }
 
 //Kill a given particle beam using its reference
-public Action Particlebeams_RemoveParticle(Handle timer, int entref)
+public Action ParticleBeams_RemoveParticle(Handle timer, int entref)
 {
   int m_unEnt = EntRefToEntIndex(entref);
   
@@ -186,17 +188,17 @@ public Action Particlebeams_RemoveParticle(Handle timer, int entref)
 }
 
 //Setters/Getters
-public int Particlebeams_GetNumParticleStyles()
+public int ParticleBeams_GetNumParticleStyles()
 {
-  return numParticleStyles;
+  return s_NumParticleStyles;
 }
 
-public int Particlebeams_GetStyle()
+public int ParticleBeams_GetStyle()
 {
-  return curParticleStyle;
+  return s_CurParticleStyle;
 }
 
-public void Particlebeams_SetStyle(int newStyle)
+public void ParticleBeams_SetStyle(int newStyle)
 {
-  curParticleStyle = newStyle;
+  s_CurParticleStyle = newStyle;
 }

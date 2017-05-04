@@ -1,6 +1,6 @@
 /*
 * Special days manager
-* Prefix: specialdays_
+* Prefix: SpecialDays_
 */
 
 #if defined _wardentools_specialdays_included
@@ -13,8 +13,11 @@
 
 #define SPECIALDAYS_MAX_DAYS 64
 #define MAX_ROUNDS 30
-#define TELEPORTTYPE_ALL 0
-#define TELEPORTTYPE_T 1
+
+enum TeleportType {
+  TeleportType_All,
+  TeleportType_T
+}
 
 #include "wardentools/beams.sp"
 #include "wardentools/colours.sp"
@@ -40,63 +43,63 @@ enum SpecialDay
 }
 
 //Convars
-ConVar cvar_specialdays_maxdays = null;
-ConVar cvar_specialdays_starttime = null;
+ConVar g_Cvar_SpecialDays_MaxDays = null;
+ConVar g_Cvar_SpecialDays_StartTime = null;
 
 //Global
-int specialDayList[SPECIALDAYS_MAX_DAYS][SpecialDay];
+int g_SpecialDayList[SPECIALDAYS_MAX_DAYS][SpecialDay];
 
 //Global statics
-static int specialDayCount = 0;
-static int numSpecialDays = 0; //number of special days performed on map
-static int currentSpecialDay = -1; //index into special day list
-static int specialDayStartTime = 0;
-static bool specialDayDamageProtection = false;
-static Handle damageProtectionHandle = null;
-static Handle teleportHandle = null;
-static int roundCount = 0;
-static bool isSpecialDayRound[MAX_ROUNDS] = {false, ...};
-static bool showDayStartHud = false;
-static Handle gameStartWarningTimer = null;
-static int warningSecondsLeft = -1;
+static int s_SpecialDayCount = 0;
+static int s_NumSpecialDays = 0; //number of special days performed on map
+static int s_CurrentSpecialDay = -1; //index into special day list
+static int s_SpecialDayStartTime = 0;
+static bool s_SpecialDayDamageProtection = false;
+static Handle s_DamageProtectionHandle = null;
+static Handle s_TeleportHandle = null;
+static int s_RoundCount = 0;
+static bool s_IsSpecialDayRound[MAX_ROUNDS] = {false, ...};
+static bool s_ShowDayStartHud = false;
+static Handle s_GameStartWarningTimer = null;
+static int s_WarningSecondsLeft = -1;
 
-public void Specialdays_OnPluginStart()
+public void SpecialDays_OnPluginStart()
 {
-  specialDayCount = 0;
+  s_SpecialDayCount = 0;
   
-  cvar_specialdays_maxdays = CreateConVar("sm_wt_specialdays_maxdays", "4", "Maximum number of special days per map (def. 4)");
-  cvar_specialdays_starttime = CreateConVar("sm_wt_specialdays_starttime", "60.0", "The amount of time the warden has to trigger a special day (def. 60.0)");
+  g_Cvar_SpecialDays_MaxDays = CreateConVar("sm_wt_specialdays_maxdays", "4", "Maximum number of special days per map (def. 4)");
+  g_Cvar_SpecialDays_StartTime = CreateConVar("sm_wt_specialdays_starttime", "60.0", "The amount of time the warden has to trigger a special day (def. 60.0)");
   
   HookEvent("round_end", SpecialDay_EventRoundEnd, EventHookMode_Pre);
   HookEvent("round_prestart", SpecialDay_Reset, EventHookMode_Post);
   HookEvent("server_cvar", SpecialDay_EventServerCvar, EventHookMode_Pre);
   
   //Call init functions
-  Specialdays_Init_Freeday();
-  Specialdays_Init_CustomDay();
-  Specialdays_Init_HnsDay();
-  Specialdays_Init_Warday();
-  Specialdays_Init_ZombieDay();
-  Specialdays_Init_FfaDm();
-  Specialdays_Init_TeamDm();
-  Specialdays_Init_Hungergames();
-  Specialdays_Init_Oneinthechamber();
+  SpecialDays_Init_Freeday();
+  SpecialDays_Init_CustomDay();
+  SpecialDays_Init_HnsDay();
+  SpecialDays_Init_WarDay();
+  SpecialDays_Init_ZombieDay();
+  SpecialDays_Init_FfaDm();
+  SpecialDays_Init_TeamDm();
+  SpecialDays_Init_HungerGames();
+  SpecialDays_Init_OneInTheChamber();
 }
 
-public void Specialdays_OnMapStart()
+public void SpecialDays_OnMapStart()
 {
-  numSpecialDays = 0;
-  roundCount = 0;
+  s_NumSpecialDays = 0;
+  s_RoundCount = 0;
 }
 
 //Round End
 public Action SpecialDay_EventRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 {
   //Call end func
-  if (currentSpecialDay != -1) {
-    Call_StartFunction(null, specialDayList[currentSpecialDay][dayEnd]);
+  if (s_CurrentSpecialDay != -1) {
+    Call_StartFunction(null, g_SpecialDayList[s_CurrentSpecialDay][dayEnd]);
     Call_Finish();
-    currentSpecialDay = -1;
+    s_CurrentSpecialDay = -1;
   }
 }
 
@@ -106,38 +109,33 @@ public Action SpecialDay_Reset(Handle event, const char[] name, bool dontBroadca
   //Enable LR if disabled
   ConVar hostiesLR = FindConVar("sm_hosties_lr");
   if (hostiesLR != null)
-    SetConVarInt(hostiesLR, 1);  
+    hostiesLR.IntValue = 1; 
     
   //Enable colouring of rebellers
   ConVar rebelColour = FindConVar("sm_hosties_rebel_color");
   if (rebelColour != null)
-    SetConVarInt(rebelColour, 1);
+    rebelColour.IntValue = 1;
     
   //Enable warden claiming
   ConVar wardenClaim = FindConVar("sm_warden_enabled");
   if (wardenClaim != null)
-    SetConVarInt(wardenClaim, 1);
+    wardenClaim.IntValue = 1;
     
-  if (damageProtectionHandle != null)
-    delete damageProtectionHandle;
+  delete s_DamageProtectionHandle;
+  delete s_TeleportHandle;
+  delete s_GameStartWarningTimer;
     
-  if (teleportHandle != null)
-    delete teleportHandle;
-    
-  if (gameStartWarningTimer != null)
-    delete gameStartWarningTimer;
-    
-  specialDayStartTime = 0;
-  specialDayDamageProtection = false;
-  showDayStartHud = false;
-  warningSecondsLeft = -1;
+  s_SpecialDayStartTime = 0;
+  s_SpecialDayDamageProtection = false;
+  s_ShowDayStartHud = false;
+  s_WarningSecondsLeft = -1;
   
-  ++roundCount;
+  ++s_RoundCount;
   
   //Set first round freeday
-  if (roundCount == 1) {
-    --numSpecialDays; //this round does not reduce number of rounds
-    Specialdays_StartSpecialDay("Freeday");
+  if (s_RoundCount == 1) {
+    --s_NumSpecialDays; //this round does not reduce number of rounds
+    SpecialDays_StartSpecialDay("Freeday");
   }
 }
 
@@ -154,20 +152,20 @@ public Action SpecialDay_EventServerCvar(Handle event, const char[] name, bool d
   return Plugin_Continue;  
 }
 
-public void Specialdays_OnClientPutInServer(int client)
+public void SpecialDays_OnClientPutInServer(int client)
 {
-  SDKHook(client, SDKHook_OnTakeDamage, Specialdays_OnTakeDamage);
+  SDKHook(client, SDKHook_OnTakeDamage, SpecialDays_OnTakeDamage);
   
   //Special days
-  for (int i = 0; i < specialDayCount; ++i) {
-    Call_StartFunction(null, specialDayList[i][onClientPutInServer]);
+  for (int i = 0; i < s_SpecialDayCount; ++i) {
+    Call_StartFunction(null, g_SpecialDayList[i][onClientPutInServer]);
     Call_PushCell(client);
     Call_Finish();
   }
 }
 
 //Called when a player takes damage, can be used by special days to block damage during hide time
-public Action Specialdays_OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3])
+public Action SpecialDays_OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3])
 {
   //Ignore invalid entities
   if (!(victim >= 0 && victim <= MaxClients) || !(attacker >= 0 && attacker <= MaxClients)) {
@@ -175,13 +173,13 @@ public Action Specialdays_OnTakeDamage(int victim, int &attacker, int &inflictor
   }
 
   //On special days, stop drowning during freeze and fall damage from world
-  if (Specialdays_IsSpecialDay() && specialDayDamageProtection && attacker == 0) {
+  if (SpecialDays_IsSpecialDay() && s_SpecialDayDamageProtection && attacker == 0) {
     if (damagetype & (DMG_DROWN | DMG_DROWNRECOVER | DMG_FALL) > 0)
       return Plugin_Handled;
   }
   
   //Block damage from players
-  if (Specialdays_IsSpecialDay() && specialDayDamageProtection && attacker != 0) {
+  if (SpecialDays_IsSpecialDay() && s_SpecialDayDamageProtection && attacker != 0) {
     return Plugin_Handled;
   }
   
@@ -189,31 +187,31 @@ public Action Specialdays_OnTakeDamage(int victim, int &attacker, int &inflictor
 }
 
 
-public void Specialdays_StartSpecialDay(char[] name)
+public void SpecialDays_StartSpecialDay(char[] name)
 {
   //Store start time
-  specialDayStartTime = GetTime();
+  s_SpecialDayStartTime = GetTime();
 
   bool success = false;
   
   //Search for special day by name and call its start function
-  for (int i = 0; i < specialDayCount; ++i) {
-    if (StrEqual(specialDayList[i][dayName], name)) {
+  for (int i = 0; i < s_SpecialDayCount; ++i) {
+    if (StrEqual(g_SpecialDayList[i][dayName], name)) {
       //Perform restriction checking
-      Call_StartFunction(null, specialDayList[i][restrictionCheck]);
+      Call_StartFunction(null, g_SpecialDayList[i][restrictionCheck]);
       Call_Finish(success);
       if (!success)
         break;
     
-      currentSpecialDay = i;
-      Call_StartFunction(null, specialDayList[i][dayStart]);
+      s_CurrentSpecialDay = i;
+      Call_StartFunction(null, g_SpecialDayList[i][dayStart]);
       Call_Finish();
       break;
     }
   }
   
   //No special day found
-  if (currentSpecialDay == -1)
+  if (s_CurrentSpecialDay == -1)
     return;
   
   //Required condition was not met
@@ -221,80 +219,81 @@ public void Specialdays_StartSpecialDay(char[] name)
     return;
   
   //Show HUD for 8 seconds
-  showDayStartHud = true;
-  CreateTimer(0.5, Specialdays_ShowDayStartHud);
-  CreateTimer(8.0, Specialdays_DisableDayStartHud);
+  s_ShowDayStartHud = true;
+  CreateTimer(0.5, SpecialDays_ShowDayStartHud);
+  CreateTimer(8.0, SpecialDays_DisableDayStartHud);
   
   //Set other required settings
   //Disable LR on special days unless its a round modifier
   ConVar hostiesLR = FindConVar("sm_hosties_lr");
   if (hostiesLR != null)
-    SetConVarInt(hostiesLR, 0);  
+    hostiesLR.IntValue = 0;
     
   //Disable colouring of rebellers
   ConVar rebelColour = FindConVar("sm_hosties_rebel_color");
   if (rebelColour != null)
-    SetConVarInt(rebelColour, 0);
+    rebelColour.IntValue = 0;
     
   //Disable warden claiming
   ConVar wardenClaim = FindConVar("sm_warden_enabled");
   if (wardenClaim != null)
-    SetConVarInt(wardenClaim, 0);
+    wardenClaim.IntValue = 0;
 
-  ++numSpecialDays;
+  ++s_NumSpecialDays;
   
-  isSpecialDayRound[roundCount] = true;
+  s_IsSpecialDayRound[s_RoundCount] = true;
 }
 
-public Action Specialdays_ShowDayStartHud(Handle timer)
+public Action SpecialDays_ShowDayStartHud(Handle timer)
 {
-  if (!showDayStartHud)
+  if (!s_ShowDayStartHud)
     return Plugin_Handled;
     
-  if (!Specialdays_IsSpecialDay())
+  if (!SpecialDays_IsSpecialDay())
     return Plugin_Handled;
     
-  PrintCenterTextAll("%t", "SpecialDay - Day Start HUD", specialDayList[currentSpecialDay][dayName]);
-  CreateTimer(0.5, Specialdays_ShowDayStartHud);
+  PrintCenterTextAll("%t", "SpecialDay - Day Start HUD", g_SpecialDayList[s_CurrentSpecialDay][dayName]);
+  CreateTimer(0.5, SpecialDays_ShowDayStartHud);
   
   return Plugin_Handled;
 }
 
-public Action Specialdays_DisableDayStartHud(Handle timer)
+public Action SpecialDays_DisableDayStartHud(Handle timer)
 {
-  if (showDayStartHud)
-    showDayStartHud = false;
+  if (s_ShowDayStartHud)
+    s_ShowDayStartHud = false;
     
   return Plugin_Handled;
 }
 
-public void Specialdays_RegisterDay(char[] name, Function startFunc, Function endFunc, Function restrictionCheckFunc, Function onClientPutInServerFunc, bool allowDrawToolsValue, bool allowGameToolsValue)
+public void SpecialDays_RegisterDay(char[] name, Function startFunc, Function endFunc, Function restrictionCheckFunc, Function onClientPutInServerFunc, bool allowDrawToolsValue, bool allowGameToolsValue)
 {
   //Store required information
-  strcopy(specialDayList[specialDayCount][dayName], 64, name);
-  specialDayList[specialDayCount][dayStart] = startFunc;
-  specialDayList[specialDayCount][dayEnd] = endFunc;
-  specialDayList[specialDayCount][restrictionCheck] = restrictionCheckFunc;
-  specialDayList[specialDayCount][onClientPutInServer] = onClientPutInServerFunc;
-  specialDayList[specialDayCount][allowDrawTools] = allowDrawToolsValue;
-  specialDayList[specialDayCount][allowGameTools] = allowGameToolsValue;
+  strcopy(g_SpecialDayList[s_SpecialDayCount][dayName], 64, name);
+  g_SpecialDayList[s_SpecialDayCount][dayStart] = startFunc;
+  g_SpecialDayList[s_SpecialDayCount][dayEnd] = endFunc;
+  g_SpecialDayList[s_SpecialDayCount][restrictionCheck] = restrictionCheckFunc;
+  g_SpecialDayList[s_SpecialDayCount][onClientPutInServer] = onClientPutInServerFunc;
+  g_SpecialDayList[s_SpecialDayCount][allowDrawTools] = allowDrawToolsValue;
+  g_SpecialDayList[s_SpecialDayCount][allowGameTools] = allowGameToolsValue;
   
-  ++specialDayCount;
+  ++s_SpecialDayCount;
 }
 
 //Called when damage protection is to be turned off
-public Action Specialdays_DamageProtection_End(Handle timer)
+public Action SpecialDays_DamageProtection_End(Handle timer)
 {
-  specialDayDamageProtection = false;
-  damageProtectionHandle = null;
+  s_DamageProtectionHandle = null; //Resolve dangling handle
+  
+  s_SpecialDayDamageProtection = false;
 }
 
 //Teleports players to beam that spawns on a clients location
 //Players are also frozen before being teleported
-//Uses: teleportHandle as handle (should be set to null in teleportFunc)
-//teleportFunc is: Specialdays_Teleport_Start_All, Specialdays_Teleport_Start_T
+//Uses: s_TeleportHandle as handle (should be set to null in teleportFunc)
+//teleportFunc is: SpecialDays_Teleport_Start_All, SpecialDays_Teleport_Start_T
 //teleportType is: 0 for all players, 1 for T's
-public void Specialdays_TeleportPlayers(int client, float tptime, char[] specialDayName, Timer teleportFunc, int teleportType)
+public void SpecialDays_TeleportPlayers(int client, float tptime, char[] specialDayName, Timer teleportFunc, TeleportType teleportType)
 {
   float client_origin[3];
   float client_angles[3];
@@ -302,46 +301,49 @@ public void Specialdays_TeleportPlayers(int client, float tptime, char[] special
   GetClientAbsAngles(client, client_angles);
  
   //Create timer with pack
-  Handle pack;
-  teleportHandle = CreateDataTimer(tptime, teleportFunc, pack);
+  DataPack pack;
+  s_TeleportHandle = CreateDataTimer(tptime, teleportFunc, pack);
   
-  if (teleportType == TELEPORTTYPE_ALL)
+  if (teleportType == TeleportType_All)
     ServerCommand("sm_freeze @all %d", RoundToFloor(tptime));
-  else if (teleportType == TELEPORTTYPE_T)
+  else if (teleportType == TeleportType_T)
     ServerCommand("sm_freeze @t %d", RoundToFloor(tptime));
     
   //Day name
-  WritePackString(pack, specialDayName);
+  pack.WriteString(specialDayName);
   
   //Origin
-  WritePackFloat(pack, client_origin[0]);
-  WritePackFloat(pack, client_origin[1]);
-  WritePackFloat(pack, client_origin[2]);
+  pack.WriteFloat(client_origin[0]);
+  pack.WriteFloat(client_origin[1]);
+  pack.WriteFloat(client_origin[2]);
   
   //Angles
-  WritePackFloat(pack, client_angles[0]);
-  WritePackFloat(pack, client_angles[1]);
-  WritePackFloat(pack, client_angles[2]);
+  pack.WriteFloat(client_angles[0]);
+  pack.WriteFloat(client_angles[1]);
+  pack.WriteFloat(client_angles[2]);
   
   //Draw beam (rally point)
   Beams_SpawnBeam(client, tptime, client_origin);
 }
 
 //Teleport start timer handler
-public Action Specialdays_Teleport_Start_All(Handle timer, Handle pack)
+public Action SpecialDays_Teleport_Start_All(Handle timer, DataPack pack)
 {
-  ResetPack(pack);
+  s_TeleportHandle = null;
+  
+  pack.Reset();
+  
   char buffer[128];
-  ReadPackString(pack, buffer, sizeof(buffer));
+  pack.ReadString(buffer, sizeof(buffer));
   
   float hOrigin[3], hAngles[3];
-  hOrigin[0] = ReadPackFloat(pack);
-  hOrigin[1] = ReadPackFloat(pack);
-  hOrigin[2] = ReadPackFloat(pack);
+  hOrigin[0] = pack.ReadFloat();
+  hOrigin[1] = pack.ReadFloat();
+  hOrigin[2] = pack.ReadFloat();
   
-  hAngles[0] = ReadPackFloat(pack);
-  hAngles[1] = ReadPackFloat(pack);
-  hAngles[2] = ReadPackFloat(pack);
+  hAngles[0] = pack.ReadFloat();
+  hAngles[1] = pack.ReadFloat();
+  hAngles[2] = pack.ReadFloat();
   
   //Teleport all players to location
   for (int i = 1; i <= MaxClients; ++i) {
@@ -354,25 +356,26 @@ public Action Specialdays_Teleport_Start_All(Handle timer, Handle pack)
   
   //Report Teleported
   CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Teleport Start All", buffer);
-  
-  teleportHandle = null;
 }
 
 //Teleport start timer handler
-public Action Specialdays_Teleport_Start_T(Handle timer, Handle pack)
+public Action SpecialDays_Teleport_Start_T(Handle timer, DataPack pack)
 {
-  ResetPack(pack);
+  s_TeleportHandle = null;
+  
+  pack.Reset();
+  
   char buffer[128];
-  ReadPackString(pack, buffer, sizeof(buffer));
+  pack.ReadString(buffer, sizeof(buffer));
   
   float hOrigin[3], hAngles[3];
-  hOrigin[0] = ReadPackFloat(pack);
-  hOrigin[1] = ReadPackFloat(pack);
-  hOrigin[2] = ReadPackFloat(pack);
+  hOrigin[0] = pack.ReadFloat();
+  hOrigin[1] = pack.ReadFloat();
+  hOrigin[2] = pack.ReadFloat();
   
-  hAngles[0] = ReadPackFloat(pack);
-  hAngles[1] = ReadPackFloat(pack);
-  hAngles[2] = ReadPackFloat(pack);
+  hAngles[0] = pack.ReadFloat();
+  hAngles[1] = pack.ReadFloat();
+  hAngles[2] = pack.ReadFloat();
   
   //Teleport all T's to location
   for (int i = 1; i <= MaxClients; ++i) {
@@ -385,117 +388,114 @@ public Action Specialdays_Teleport_Start_T(Handle timer, Handle pack)
   
   //Report Teleported
   CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - Teleport Start T", buffer);
-  
-  teleportHandle = null;
 }
 
 //Getters/setters
-public bool Specialdays_IsSpecialDay()
+public bool SpecialDays_IsSpecialDay()
 {
-  return (currentSpecialDay != -1);
+  return (s_CurrentSpecialDay != -1);
 }
 
-public int Specialdays_GetSpecialDay()
+public int SpecialDays_GetSpecialDay()
 {
-  return currentSpecialDay;
+  return s_CurrentSpecialDay;
 }
 
-public void Specialdays_GetSpecialDayName(char[] buffer, int bufferSize)
+public void SpecialDays_GetSpecialDayName(char[] buffer, int bufferSize)
 {
-  if (Specialdays_IsSpecialDay()) {
-    Format(buffer, bufferSize, specialDayList[currentSpecialDay][dayName]);
+  if (SpecialDays_IsSpecialDay()) {
+    Format(buffer, bufferSize, g_SpecialDayList[s_CurrentSpecialDay][dayName]);
   } else {
     Format(buffer, bufferSize, "");
   }
 }
 
-public int Specialdays_GetSpecialDayCount()
+public int SpecialDays_GetSpecialDayCount()
 {
-  return specialDayCount;
+  return s_SpecialDayCount;
 }
 
-public int Specialdays_GetNumSpecialDays()
+public int SpecialDays_GetNumSpecialDays()
 {
-  return numSpecialDays;
+  return s_NumSpecialDays;
 }
 
-public int Specialdays_GetNumSpecialDaysLeft()
+public int SpecialDays_GetNumSpecialDaysLeft()
 {
-  return GetConVarInt(cvar_specialdays_maxdays) - numSpecialDays;
+  return g_Cvar_SpecialDays_MaxDays.IntValue - s_NumSpecialDays;
 }
 
-public int Specialdays_GetDayStartTime()
+public int SpecialDays_GetDayStartTime()
 {
-  return specialDayStartTime;
+  return s_SpecialDayStartTime;
 }
 
-public int Specialdays_GetSecondsToStartDay()
+public int SpecialDays_GetSecondsToStartDay()
 {
-  return GetConVarInt(cvar_specialdays_starttime);
+  return g_Cvar_SpecialDays_StartTime.IntValue;
 }
 
 //Returns true if its okay to start special day
-public bool Specialdays_CanStartSpecialDay()
+public bool SpecialDays_CanStartSpecialDay()
 {
-  if (Specialdays_IsSpecialDay())
+  if (SpecialDays_IsSpecialDay())
     return false;
     
-  if (Specialdays_GetNumSpecialDaysLeft() == 0)
+  if (SpecialDays_GetNumSpecialDaysLeft() == 0)
     return false;
   
-  if (GetTimeSinceRoundStart() >= Specialdays_GetSecondsToStartDay())
+  if (GetTimeSinceRoundStart() >= SpecialDays_GetSecondsToStartDay())
     return false;
     
-  if (roundCount <= 1 || isSpecialDayRound[roundCount - 1])
+  if (s_RoundCount <= 1 || s_IsSpecialDayRound[s_RoundCount - 1])
     return false;
   
   return true;
 }
 
 //Duration: 0.0 equals permanent
-public void Specialdays_SetDamageProtection(bool value, float duration)
+public void SpecialDays_SetDamageProtection(bool value, float duration)
 {
-  specialDayDamageProtection = value;
+  s_SpecialDayDamageProtection = value;
   
-  if (specialDayDamageProtection) {
+  if (s_SpecialDayDamageProtection) {
     if (duration > 0.0) {
-      damageProtectionHandle = CreateTimer(duration, Specialdays_DamageProtection_End);
+      s_DamageProtectionHandle = CreateTimer(duration, SpecialDays_DamageProtection_End);
     }
   }
 }
 
-public void Specialdays_ShowGameStartWarning(float countdown, int duration)
+public void SpecialDays_ShowGameStartWarning(float countdown, int duration)
 {
-  gameStartWarningTimer = CreateTimer(countdown - duration,Specialdays_ShowGameStartWarningTimer);
-  warningSecondsLeft = duration;
+  s_GameStartWarningTimer = CreateTimer(countdown - duration, SpecialDays_ShowGameStartWarningTimer);
+  s_WarningSecondsLeft = duration;
 }
 
 //Timer called to warn of game starting
-public Action Specialdays_ShowGameStartWarningTimer(Handle timer)
+public Action SpecialDays_ShowGameStartWarningTimer(Handle timer)
 {
-  //Create warning HUD
-  CreateTimer(0.0, Specialdays_ShowGameStartWarningHud);
+  s_GameStartWarningTimer = null; //Resolve dangling handle
   
-  gameStartWarningTimer = null;
+  //Create warning HUD
+  CreateTimer(0.0, SpecialDays_ShowGameStartWarningHud);
   
   return Plugin_Handled;
 }
 
-public Action Specialdays_ShowGameStartWarningHud(Handle timer)
+public Action SpecialDays_ShowGameStartWarningHud(Handle timer)
 {
-  if (!Specialdays_IsSpecialDay())
+  if (!SpecialDays_IsSpecialDay())
     return Plugin_Handled;
     
-  if (warningSecondsLeft <= 0) {
-    PrintCenterTextAll("%t", "SpecialDay - Game Start Started", specialDayList[currentSpecialDay][dayName]);
+  if (s_WarningSecondsLeft <= 0) {
+    PrintCenterTextAll("%t", "SpecialDay - Game Start Started", g_SpecialDayList[s_CurrentSpecialDay][dayName]);
     return Plugin_Handled;
   }
   
-  PrintCenterTextAll("%t", "SpecialDay - Game Start Warning HUD", specialDayList[currentSpecialDay][dayName], warningSecondsLeft);
-  --warningSecondsLeft;
+  PrintCenterTextAll("%t", "SpecialDay - Game Start Warning HUD", g_SpecialDayList[s_CurrentSpecialDay][dayName], s_WarningSecondsLeft);
+  --s_WarningSecondsLeft;
   
-  CreateTimer(1.0, Specialdays_ShowGameStartWarningHud);
+  CreateTimer(1.0, SpecialDays_ShowGameStartWarningHud);
   
   return Plugin_Handled;
 }
-

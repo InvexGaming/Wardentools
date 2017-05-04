@@ -1,6 +1,6 @@
 /*
 * Blind toggle
-* Prefix: blind_
+* Prefix: Blind_
 */
 
 #if defined _wardentools_blind_included
@@ -11,14 +11,14 @@
 #include <wardentools>
 #include <cstrike>
 
-static UserMsg g_FadeUserMsgId; //For Blind
-static bool isBlind[MAXPLAYERS+1] = false;
-static bool shouldBlind = false;
+static UserMsg s_FadeUserMsgId; //For Blind
+static bool s_IsBlind[MAXPLAYERS+1] = false;
+static bool s_ShouldBlind = false;
 
 //OnPluginStart
 public void Blind_OnPluginStart()
 {
-  g_FadeUserMsgId = GetUserMessageId("Fade");
+  s_FadeUserMsgId = GetUserMessageId("Fade");
   
   HookEvent("player_death", Blind_EventPlayerDeath, EventHookMode_Pre);
   HookEvent("round_prestart", Blind_Reset, EventHookMode_Post);
@@ -30,52 +30,30 @@ public Action Blind_EventPlayerDeath(Event event, const char[] name, bool dontBr
   //Unblind all clients on death who are blind
   int client = GetClientOfUserId(event.GetInt("userid"));
   
-  if (isBlind[client]) {
-    Handle fadePack;
-    CreateDataTimer(0.0, Blind_UnfadeClient, fadePack);
-    WritePackCell(fadePack, client);
-    WritePackCell(fadePack, 0);
-    WritePackCell(fadePack, 0);
-    WritePackCell(fadePack, 0);
-    WritePackCell(fadePack, 0);
-  }
+  if (s_IsBlind[client])
+    Blind_Unblind(client, 0.0, 0, 0, 0, 0);
 }
 
 //OnClientPutInServer
 public void Blind_OnClientPutInServer(int client)
 {
-  isBlind[client] = false;
+  s_IsBlind[client] = false;
 }
 
 public void Blind_ToggleTeamBlind(int team)
 {
-  shouldBlind = !shouldBlind; //toggle command
+  s_ShouldBlind = !s_ShouldBlind; //toggle command
 
   for (int i = 1; i <= MaxClients ; ++i) {
     if (IsClientInGame(i) && IsPlayerAlive(i)) {
       if (GetClientTeam(i) == team) {
-         if (shouldBlind) {
-           isBlind[i] = true;
-           
-           Handle fadePack;
-           CreateDataTimer(0.0, Blind_FadeClient, fadePack);
-           WritePackCell(fadePack, i);
-           WritePackCell(fadePack, 0);
-           WritePackCell(fadePack, 0);
-           WritePackCell(fadePack, 0);
-           WritePackCell(fadePack, 255);
-         }
-         else {
-           isBlind[i] = false;
-           
-           Handle fadePack;
-           CreateDataTimer(0.0, Blind_UnfadeClient, fadePack);
-           WritePackCell(fadePack, i);
-           WritePackCell(fadePack, 0);
-           WritePackCell(fadePack, 0);
-           WritePackCell(fadePack, 0);
-           WritePackCell(fadePack, 0);
-         }
+        if (s_ShouldBlind) {
+          Blind_Blind(i);
+        } else {
+          Blind_Unblind(i);
+        }
+        
+        s_IsBlind[i] = s_ShouldBlind;
       }
     }
   }
@@ -99,56 +77,70 @@ public void Blind_Reset(Handle event, const char[] name, bool dontBroadcast)
       continue;
     
     //Unblind all
-    if (isBlind[i]) {
-      Handle fadePack;
-      CreateDataTimer(0.0, Blind_UnfadeClient, fadePack);
-      WritePackCell(fadePack, i);
-      WritePackCell(fadePack, 0);
-      WritePackCell(fadePack, 0);
-      WritePackCell(fadePack, 0);
-      WritePackCell(fadePack, 0);
-      
-      isBlind[i] = false;
+    if (s_IsBlind[i]) {
+      Blind_Unblind(i);
+      s_IsBlind[i] = false;
     }
   }
   
-  shouldBlind = false;
+  s_ShouldBlind = false;
 }
 
-
-public Action Blind_FadeClient(Handle timer, Handle pack)
+//Convinient blind helper function
+void Blind_Blind(int client, float time = 0.0, int r = 0, int g = 0, int b = 0, int a = 255)
 {
-  ResetPack(pack);
+  DataPack fadePack;
+  CreateDataTimer(time, Blind_FadeClient, fadePack);
+  fadePack.WriteCell(client);
+  fadePack.WriteCell(r);
+  fadePack.WriteCell(g);
+  fadePack.WriteCell(b);
+  fadePack.WriteCell(a);
+}
+
+//Convinient unblind helper function
+void Blind_Unblind(int client, float time = 0.0, int r = 0, int g = 0, int b = 0, int a = 0)
+{
+  DataPack fadePack;
+  CreateDataTimer(time, Blind_UnfadeClient, fadePack);
+  fadePack.WriteCell(client);
+  fadePack.WriteCell(r);
+  fadePack.WriteCell(g);
+  fadePack.WriteCell(b);
+  fadePack.WriteCell(a);
+}
+
+public Action Blind_FadeClient(Handle timer, DataPack pack)
+{
+  pack.Reset();
   
   int targets[2];
-  targets[0] = ReadPackCell(pack);
+  targets[0] = pack.ReadCell();
   
   if (!IsClientConnected(targets[0]) || IsFakeClient(targets[0]))
     return Plugin_Handled;
   
   int color[4];
-  color[0] = ReadPackCell(pack);
-  color[1] = ReadPackCell(pack);
-  color[2] = ReadPackCell(pack);
-  color[3] = ReadPackCell(pack);
+  color[0] = pack.ReadCell();
+  color[1] = pack.ReadCell();
+  color[2] = pack.ReadCell();
+  color[3] = pack.ReadCell();
   
   int duration = 255;
   int holdtime = 255;
   
   int flags = (0x0002 | 0x0008);
   
-  Handle message = StartMessageEx(g_FadeUserMsgId, targets, 1);
+  Handle message = StartMessageEx(s_FadeUserMsgId, targets, 1);
   
-  if (GetUserMessageType() == UM_Protobuf)
-  {
+  if (GetUserMessageType() == UM_Protobuf) {
     Protobuf pb = UserMessageToProtobuf(message);
     pb.SetInt("duration", duration);
     pb.SetInt("hold_time", holdtime);
     pb.SetInt("flags", flags);
     pb.SetColor("clr", color);
   }
-  else
-  {
+  else {
     BfWrite bf = UserMessageToBfWrite(message);
     bf.WriteShort(duration);
     bf.WriteShort(holdtime);
@@ -164,39 +156,37 @@ public Action Blind_FadeClient(Handle timer, Handle pack)
   return Plugin_Handled;
 }
 
-public Action Blind_UnfadeClient(Handle timer, Handle pack)
+public Action Blind_UnfadeClient(Handle timer, DataPack pack)
 {
-  ResetPack(pack);
+  pack.Reset();
   
   int targets[2];
-  targets[0] = ReadPackCell(pack);
+  targets[0] = pack.ReadCell();
   
   if (!IsClientConnected(targets[0]) || IsFakeClient(targets[0]))
     return Plugin_Handled;
   
   int color[4];
-  color[0] = ReadPackCell(pack);
-  color[1] = ReadPackCell(pack);
-  color[2] = ReadPackCell(pack);
-  color[3] = ReadPackCell(pack);
+  color[0] = pack.ReadCell();
+  color[1] = pack.ReadCell();
+  color[2] = pack.ReadCell();
+  color[3] = pack.ReadCell();
   
   int duration = 1536;
   int holdtime = 1536;
   
   int flags = (0x0001 | 0x0010);
 
-  Handle message = StartMessageEx(g_FadeUserMsgId, targets, 1);
+  Handle message = StartMessageEx(s_FadeUserMsgId, targets, 1);
   
-  if (GetUserMessageType() == UM_Protobuf)
-  {
+  if (GetUserMessageType() == UM_Protobuf) {
     Protobuf pb = UserMessageToProtobuf(message);
     pb.SetInt("duration", duration);
     pb.SetInt("hold_time", holdtime);
     pb.SetInt("flags", flags);
     pb.SetColor("clr", color);
   }
-  else
-  {
+  else {
     BfWrite bf = UserMessageToBfWrite(message);
     bf.WriteShort(duration);
     bf.WriteShort(holdtime);
@@ -215,5 +205,5 @@ public Action Blind_UnfadeClient(Handle timer, Handle pack)
 //Getters/Setters
 public void Blind_SetBlind(int client, bool value)
 {
-  isBlind[client] = value;
+  s_IsBlind[client] = value;
 }
