@@ -239,6 +239,19 @@
   {
     "en" "The {green}One in the Chamber{default} day has now started! You may now damage other players. You have {green}1{default} bullet and a knife. Each shot will result in a kill and give you another bullet!"
   }
+  "SpecialDay - ESP FFADM Round Over"
+  {
+    "en"       "The {green}ESP FFA deathmatch{default} day is now over. There was no winner. Remaining alive players have been slain."
+  }
+  "SpecialDay - ESP FFADM Day"
+  {
+    "#format"		"{1:d},{2:d}"
+    "en"			"This round is a {green}ESP FFA Deathmatch{default} day! All players will be teleported to the start beacon in {green}{1}{default} seconds. You then have {green}{2}{default} seconds to gather weapons before ESP is turned on!"
+  }
+  "SpecialDay - ESP FFADM Started"
+  {
+    "en" "The {green}ESP FFA Deathmatch{default} day has now started! ESP has been turned on. You may now damage other players."
+  }
   "SpecialDay - Command Not Allowed"
   {
     "en" "You cannot use this command during a special day."

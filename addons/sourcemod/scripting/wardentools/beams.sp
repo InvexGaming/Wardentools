@@ -37,7 +37,7 @@ ConVar g_Cvar_Beams_MaxUnits = null;
 //OnPluginStart
 public void Beams_OnPluginStart()
 {
-  RegConsoleCmd("+beam", Beams_PlaceBeamAction, "", FCVAR_GAMEDLL);
+  RegConsoleCmd("+beam", Beams_PlaceBeamAction, "");
   HookEvent("round_prestart", Beams_Reset, EventHookMode_Post);
   HookEvent("round_end", Beams_EventRoundEnd, EventHookMode_Pre);
   
@@ -70,7 +70,7 @@ public void Beams_Reset(Handle event, const char[] name, bool dontBroadcast)
 
 //Quick place beams using bind
 public Action Beams_PlaceBeamAction(int client, int args)
-{
+{ 
   Beams_PlaceBeam(client);
   
   return Plugin_Handled;

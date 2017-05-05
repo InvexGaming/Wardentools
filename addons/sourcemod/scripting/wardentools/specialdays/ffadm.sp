@@ -177,7 +177,13 @@ public Action SpecialDays_FfaDm_AutoBeaconOn(Handle timer)
     return Plugin_Handled;
     
   ServerCommand("sm_beacon @alive");
-  ServerCommand("sm_msay All players must now actively hunt other players.");
+
+  for (int i = 1; i <= MaxClients; ++i) {
+    if (IsClientConnected(i)) {
+      SetHudTextParams(-1.0, -1.0, 5.0, 255, 0, 0, 200, 0, 1.0, 1.0, 1.0);
+      ShowHudText(i, -1, "YOU MUST NOW ACTIVELY HUNT");
+    }
+  }
   
   return Plugin_Handled;
 }

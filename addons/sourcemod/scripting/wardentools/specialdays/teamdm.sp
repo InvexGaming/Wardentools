@@ -1,5 +1,6 @@
 #include "wardentools/colours.sp"
 #include "wardentools/highlights.sp"
+#include "wardentools/esp.sp"
 
 //Convars
 ConVar g_Cvar_SpecialDays_TeamDm_SlayTime = null;
@@ -14,7 +15,7 @@ static Handle s_FreeForAllRoundEndHandle = null;
 static Handle s_AutoBeaconHandle = null;
 static Handle s_FreeForAllStartTimer = null;
 
-static Colour s_TeamColourCodes[] = { Colour_Red, Colour_Blue, Colour_Green, Colour_Yellow, Colour_Black};
+static Colour s_TeamColourCodes[] = {Colour_Red, Colour_Blue, Colour_Green, Colour_Yellow, Colour_Black};
 static int s_TeamCounter = 0;
 static int s_NumTeams = 0;
 
@@ -79,6 +80,8 @@ public void SpecialDays_TeamDm_Start()
 public void SpecialDays_TeamDm_End() 
 {
   s_IsEnabled = false;
+  
+  Esp_Reset(); //remove esp
 }
 
 public bool SpecialDays_TeamDm_RestrictionCheck() 
@@ -150,6 +153,14 @@ public Action SpecialDays_TeamDm_EventPlayerSpawn(Event event, const char[] name
     return Plugin_Continue;
   
   SpecialDays_TeamDm_ApplyEffects(client);
+  
+  //If late spawn, need to set ESP for all clients again
+  //So all clients can properly see all members of their team
+  for (int i = 1; i <= MaxClients; ++i) {
+    SpecialDays_TeamDm_SetClientEspTeams(i);
+  }
+  
+  Esp_CheckGlows();
   
   return Plugin_Continue;
 }
@@ -253,7 +264,13 @@ public Action SpecialDays_TeamDm_AutoBeaconOn(Handle timer)
     return Plugin_Handled;
     
   ServerCommand("sm_beacon @alive");
-  ServerCommand("sm_msay All players must now actively hunt other players.");
+  
+  for (int i = 1; i <= MaxClients; ++i) {
+    if (IsClientConnected(i)) {
+      SetHudTextParams(-1.0, -1.0, 5.0, 255, 0, 0, 200, 0, 1.0, 1.0, 1.0);
+      ShowHudText(i, -1, "YOU MUST NOW ACTIVELY HUNT");
+    }
+  }
   
   return Plugin_Handled;
 }
@@ -334,6 +351,14 @@ public Action SpecialDays_TeamDm_TeamDmStart(Handle timer)
   
   delete eligblePlayers;
   
+  //Once all teams have been assigned
+  //Set ESP for teams for all clients
+  for (int i = 1; i <= MaxClients; ++i) {
+    SpecialDays_TeamDm_SetClientEspTeams(i);
+  }
+  
+  Esp_CheckGlows();
+  
   //Enable hud for all
   CreateTimer(0.5, SpecialDays_TeamDm_ShowHud);
   
@@ -352,7 +377,7 @@ public Action SpecialDays_TeamDm_ShowHud(Handle timer)
       int teammatesTotal = 0;
       int enemiesAlive = 0;
       int enemiesTotal = 0;
-    
+      
       //Get required info
       for (int j = 1; j <= MaxClients; ++j) {
         if (IsClientInGame(j) && Highlights_IsHighlighted(j)) {
@@ -418,6 +443,12 @@ void SpecialDays_TeamDm_ApplyEffects(int client)
     Highlights_SetIsHighlighted(client, true);
     Highlights_SetHighlightedColour(client, s_TeamColourCodes[s_TeamCounter]);
     
+    //Set player to use ESP and set their ESP colour
+    Esp_SetIsUsingEsp(client, true);
+    int espColour[4];
+    Colours_GetColourFromColourCode(s_TeamColourCodes[s_TeamCounter], espColour);
+    Esp_SetEspColour(client, espColour);
+    
     //Highlight them and print a message
     char clantag[10];
     
@@ -451,5 +482,20 @@ void SpecialDays_TeamDm_ApplyEffects(int client)
     //Reset counter if we reach last team
     if (s_TeamCounter == s_NumTeams)
       s_TeamCounter = 0;
+  }
+}
+
+//Sets the ESP team for this player
+void SpecialDays_TeamDm_SetClientEspTeams(int client)
+{
+  if (!IsClientInGame(client))
+    return;
+    
+  for (int target = 1; target <= MaxClients; ++target) {
+    if (!IsClientInGame(target))
+      continue;
+    
+    //Set true and false explicitly
+    Esp_SetEspCanSeeClient(client, target, Highlights_GetHighlightedColour(target) == Highlights_GetHighlightedColour(client));
   }
 }

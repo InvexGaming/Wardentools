@@ -52,6 +52,7 @@ int g_NewRoundTimeElapsed = 0;
 #include "wardentools/miccheck.sp"
 #include "wardentools/priorityspeaker.sp"
 #include "wardentools/specialdays.sp"
+#include "wardentools/esp.sp"
 
 //Plugin Info
 public Plugin myinfo =
@@ -107,6 +108,7 @@ public void OnPluginStart()
   MicCheck_OnPluginStart();
   PrioritySpeaker_OnPluginStart();
   SpecialDays_OnPluginStart();
+  Esp_OnPluginStart();
   
   //Create config file
   AutoExecConfig(true, "wardentools");

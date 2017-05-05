@@ -30,6 +30,7 @@ enum TeleportType {
 #include "wardentools/specialdays/teamdm.sp"
 #include "wardentools/specialdays/hungergames.sp"
 #include "wardentools/specialdays/oneinthechamber.sp"
+#include "wardentools/specialdays/espffadm.sp"
 
 enum SpecialDay
 {
@@ -84,6 +85,7 @@ public void SpecialDays_OnPluginStart()
   SpecialDays_Init_TeamDm();
   SpecialDays_Init_HungerGames();
   SpecialDays_Init_OneInTheChamber();
+  SpecialDays_Init_EspFfaDm();
 }
 
 public void SpecialDays_OnMapStart()

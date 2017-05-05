@@ -21,8 +21,8 @@ static int s_BeamSprite;
 //OnPluginStart
 public void Laser_OnPluginStart()
 {
-  RegConsoleCmd("+sm_laser", Laser_PlaceLaserAction, "");
-  RegConsoleCmd("-sm_laser", Laser_RemoveLaserAction, "");
+  RegConsoleCmd("+laser", Laser_PlaceLaserAction, "");
+  RegConsoleCmd("-laser", Laser_RemoveLaserAction, "");
   
   HookEvent("player_death", Laser_EventPlayerDeath, EventHookMode_Pre);
   HookEvent("round_prestart", Laser_Reset, EventHookMode_Post);
