@@ -146,7 +146,7 @@ public bool TeamDeathmatch_IsInHighlightTeamDM()
 }
 
 //Round pre start
-public void TeamDeathmatch_Reset(Handle event, const char[] name, bool dontBroadcast)
+public void TeamDeathmatch_Reset(Event event, const char[] name, bool dontBroadcast)
 {
   s_IsInHighlightTeamDM = false;
 }

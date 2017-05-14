@@ -110,7 +110,7 @@ public bool SpecialDays_TeamDm_RestrictionCheck()
 }
 
 //Round pre start
-public void SpecialDays_TeamDm_Reset(Handle event, const char[] name, bool dontBroadcast)
+public void SpecialDays_TeamDm_Reset(Event event, const char[] name, bool dontBroadcast)
 {
   delete s_FreeForAllRoundEndHandle;
   delete s_FreeForAllStartTimer;
@@ -149,18 +149,18 @@ public Action SpecialDays_TeamDm_EventPlayerSpawn(Event event, const char[] name
     
   int client = GetClientOfUserId(event.GetInt("userid"));
   
-  if (!IsClientConnected(client) || !IsClientInGame(client) || !IsPlayerAlive(client))
+  if (!IsClientInGame(client) || !IsPlayerAlive(client))
     return Plugin_Continue;
   
   SpecialDays_TeamDm_ApplyEffects(client);
   
   //If late spawn, need to set ESP for all clients again
   //So all clients can properly see all members of their team
-  for (int i = 1; i <= MaxClients; ++i) {
-    SpecialDays_TeamDm_SetClientEspTeams(i);
+  if (s_IsPastHideTime) {
+    for (int i = 1; i <= MaxClients; ++i) {
+      SpecialDays_TeamDm_SetClientEspTeams(i);
+    }
   }
-  
-  Esp_CheckGlows();
   
   return Plugin_Continue;
 }
@@ -266,7 +266,7 @@ public Action SpecialDays_TeamDm_AutoBeaconOn(Handle timer)
   ServerCommand("sm_beacon @alive");
   
   for (int i = 1; i <= MaxClients; ++i) {
-    if (IsClientConnected(i)) {
+    if (IsClientInGame(i)) {
       SetHudTextParams(-1.0, -1.0, 5.0, 255, 0, 0, 200, 0, 1.0, 1.0, 1.0);
       ShowHudText(i, -1, "YOU MUST NOW ACTIVELY HUNT");
     }
@@ -356,8 +356,6 @@ public Action SpecialDays_TeamDm_TeamDmStart(Handle timer)
   for (int i = 1; i <= MaxClients; ++i) {
     SpecialDays_TeamDm_SetClientEspTeams(i);
   }
-  
-  Esp_CheckGlows();
   
   //Enable hud for all
   CreateTimer(0.5, SpecialDays_TeamDm_ShowHud);

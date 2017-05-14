@@ -1,8 +1,10 @@
+#include "wardentools/esp.sp"
+
 //Convars
 ConVar g_Cvar_SpecialDays_EspFfaDm_TeleportTime = null;
 ConVar g_Cvar_SpecialDays_EspFfaDm_HideTime = null;
 ConVar g_Cvar_SpecialDays_EspFfaDm_SlayTime = null;
-ConVar g_Cvar_SpecialDays_EspFfaDm_AutoBeaconTime = null;
+ConVar g_Cvar_SpecialDays_EspFfaDm_AutoMustHuntTime = null;
 
 //Global statics
 static bool s_IsEnabled = false;
@@ -10,8 +12,9 @@ static int s_NumKills[MAXPLAYERS+1] = {0, ...};
 static Handle s_FreeForAllRoundEndHandle = null;
 static Handle s_FreeForAllStartTimer = null;
 static bool s_IsFFARoundStalemate = false;
+static bool s_DayStarted = false;
 static Handle s_AutoMustHuntHandle = null;
-static int s_EspColour[4] = {255, 0, 0, 200};
+static int s_EspColour[] = {255, 0, 0, 200};
 
 public void SpecialDays_Init_EspFfaDm()
 {
@@ -21,7 +24,7 @@ public void SpecialDays_Init_EspFfaDm()
   g_Cvar_SpecialDays_EspFfaDm_TeleportTime = CreateConVar("sm_wt_specialdays_espffadm_tptime", "10.0", "The amount of time before all players are teleported to start beacon (def. 10.0)");
   g_Cvar_SpecialDays_EspFfaDm_HideTime = CreateConVar("sm_wt_specialdays_espffadm_hidetime", "60", "Number of seconds everyone has to hide (def. 60)");
   g_Cvar_SpecialDays_EspFfaDm_SlayTime = CreateConVar("sm_wt_specialdays_espffadm_slaytime", "420.0", "The amount of time before all players are slayed (def. 420.0)");
-  g_Cvar_SpecialDays_EspFfaDm_AutoBeaconTime = CreateConVar("sm_wt_specialdays_espffadm_autobeacontime", "300.0", "The amount of time before all players are beaconed and told to actively hunt (def. 300.0)");
+  g_Cvar_SpecialDays_EspFfaDm_AutoMustHuntTime = CreateConVar("sm_wt_specialdays_espffadm_automusthunttime", "300.0", "The amount of time before all players are beaconed and told to actively hunt (def. 300.0)");
   
   //Hooks
   HookEvent("round_prestart", SpecialDays_EspFfaDm_Reset, EventHookMode_Post);
@@ -32,11 +35,14 @@ public void SpecialDays_Init_EspFfaDm()
 public void SpecialDays_EspFfaDm_Start() 
 {
   s_IsEnabled = true;
+  s_DayStarted = false;
 
   //Apply Effects
   for (int i = 1; i <= MaxClients; ++i) {
-    if (IsClientConnected(i) && IsClientInGame(i) && IsPlayerAlive(i)) {
-      s_NumKills[i] = 0;
+    if (IsClientInGame(i)) {
+      if (IsPlayerAlive(i))
+        s_NumKills[i] = 0;
+        
       SpecialDays_EspFfaDm_ApplyEffects(i);
     }
   }
@@ -52,7 +58,7 @@ public void SpecialDays_EspFfaDm_Start()
   SpecialDays_SetDamageProtection(true, g_Cvar_SpecialDays_EspFfaDm_TeleportTime.FloatValue + g_Cvar_SpecialDays_EspFfaDm_HideTime.FloatValue);
   
   //Create Timer for auto beacons
-  s_AutoMustHuntHandle = CreateTimer(g_Cvar_SpecialDays_EspFfaDm_AutoBeaconTime.FloatValue - GetTimeSinceRoundStart(), SpecialDays_EspFfaDm_AutoMustHuntMsgOn); 
+  s_AutoMustHuntHandle = CreateTimer(g_Cvar_SpecialDays_EspFfaDm_AutoMustHuntTime.FloatValue - GetTimeSinceRoundStart(), SpecialDays_EspFfaDm_AutoMustHuntMsgOn); 
   
   //ESP FFADM Day message
   CPrintToChatAll("%s%t", CHAT_TAG_PREFIX, "SpecialDay - ESP FFADM Day", RoundToNearest(g_Cvar_SpecialDays_EspFfaDm_TeleportTime.FloatValue), RoundToNearest(g_Cvar_SpecialDays_EspFfaDm_HideTime.FloatValue));
@@ -88,13 +94,14 @@ public void SpecialDays_EspFfaDm_OnClientPutInServer()
 }
 
 //Round pre start
-public void SpecialDays_EspFfaDm_Reset(Handle event, const char[] name, bool dontBroadcast)
+public void SpecialDays_EspFfaDm_Reset(Event event, const char[] name, bool dontBroadcast)
 {
   delete s_FreeForAllRoundEndHandle;
   delete s_FreeForAllStartTimer;
   delete s_AutoMustHuntHandle;
     
   s_IsFFARoundStalemate = false;
+  s_DayStarted = false;
   
   FindConVar("mp_friendlyfire").BoolValue = false;
   FindConVar("mp_teammates_are_enemies").BoolValue = false;
@@ -155,19 +162,14 @@ public Action SpecialDays_EspFfaDm_EventPlayerSpawn(Event event, const char[] na
     
   int client = GetClientOfUserId(event.GetInt("userid"));
   
-  if (!IsClientConnected(client) || !IsClientInGame(client) || !IsPlayerAlive(client))
+  if (!IsClientInGame(client) || !IsPlayerAlive(client))
     return Plugin_Continue;
     
   SpecialDays_EspFfaDm_ApplyEffects(client);
   
-  //If late spawn, need to set ESP for all clients again
-  for (int i = 1; i <= MaxClients; ++i) {
-    for (int j = 1; j <= MaxClients; ++j) {
-      Esp_SetEspCanSeeClient(i, j, true);
-    }
+  if (s_DayStarted) {
+    Esp_SetIsUsingEsp(client, true);
   }
-  
-  Esp_CheckGlows();
   
   return Plugin_Continue;
 }
@@ -181,12 +183,10 @@ public Action SpecialDays_EspFfaDm_EspFfaDmStart(Handle timer)
 
   //Set ESP for teams for all clients
   for (int i = 1; i <= MaxClients; ++i) {
-    for (int j = 1; j <= MaxClients; ++j) {
-      Esp_SetEspCanSeeClient(i, j, true);
-    }
+    Esp_SetIsUsingEsp(i, true);
   }
   
-  Esp_CheckGlows();
+  s_DayStarted = true;
   
   return Plugin_Handled;
 }
@@ -199,7 +199,7 @@ public Action SpecialDays_EspFfaDm_AutoMustHuntMsgOn(Handle timer)
     return Plugin_Handled;
     
   for (int i = 1; i <= MaxClients; ++i) {
-    if (IsClientConnected(i)) {
+    if (IsClientInGame(i)) {
       SetHudTextParams(-1.0, -1.0, 5.0, 255, 0, 0, 200, 0, 1.0, 1.0, 1.0);
       ShowHudText(i, -1, "YOU MUST NOW ACTIVELY HUNT");
     }
@@ -213,10 +213,15 @@ void SpecialDays_EspFfaDm_ApplyEffects(int client)
 {
   CreateTimer(0.0, RemoveRadar, client);
   
-  GivePlayerItem(client, "item_assaultsuit");
-  SetEntProp(client, Prop_Data, "m_ArmorValue", 100, 1);
+  if (IsPlayerAlive(client)) {
+    GivePlayerItem(client, "item_assaultsuit");
+    SetEntProp(client, Prop_Data, "m_ArmorValue", 100, 1);
+  }
   
-  //Give ESP
-  Esp_SetIsUsingEsp(client, true);
+  //Prepare ESP
+  Esp_SetIsUsingEsp(client, false); //will be turned on when ready
   Esp_SetEspColour(client, s_EspColour);
+  for (int i = 1; i <= MaxClients; ++i) {
+    Esp_SetEspCanSeeClient(client, i, true);
+  }
 }

@@ -29,7 +29,7 @@ public void Highlights_OnClientPutInServer(int client)
 }
 
 //Round pre start
-public void Highlights_Reset(Handle event, const char[] name, bool dontBroadcast)
+public void Highlights_Reset(Event event, const char[] name, bool dontBroadcast)
 {
   for (int i = 1; i <= MaxClients; ++i) {
     if (!IsClientInGame(i))

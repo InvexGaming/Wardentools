@@ -94,7 +94,7 @@ public Action FreezeBomb_ReportFreezebombResults(Handle timer)
 }
 
 //Round pre start
-public void FreezeBomb_Reset(Handle event, const char[] name, bool dontBroadcast)
+public void FreezeBomb_Reset(Event event, const char[] name, bool dontBroadcast)
 {
   s_ShouldFreezeT = false;
   s_FreezeTimer = null;

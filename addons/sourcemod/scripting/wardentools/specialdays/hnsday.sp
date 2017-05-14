@@ -45,7 +45,7 @@ public void SpecialDays_HnsDay_Start()
   
   //Set players health
   for (int i = 1; i <= MaxClients; ++i) {
-    if (IsClientConnected(i) && IsClientInGame(i) && IsPlayerAlive(i)) {
+    if (IsClientInGame(i) && IsPlayerAlive(i)) {
       SpecialDay_HnsDay_ApplyEffects(i);
     }
   }
@@ -87,7 +87,7 @@ public void SpecialDays_HnsDay_OnClientPutInServer()
 }
 
 //Round pre start
-public void SpecialDays_HnsDay_Reset(Handle event, const char[] name, bool dontBroadcast)
+public void SpecialDays_HnsDay_Reset(Event event, const char[] name, bool dontBroadcast)
 {
   delete s_HnsPrisonersWinHandle;
     
@@ -124,7 +124,7 @@ public Action SpecialDays_HnsDay_EventPlayerSpawn(Event event, const char[] name
     
   int client = GetClientOfUserId(event.GetInt("userid"));
   
-  if (!IsClientConnected(client) || !IsClientInGame(client) || !IsPlayerAlive(client))
+  if (!IsClientInGame(client) || !IsPlayerAlive(client))
     return Plugin_Continue;
     
   SpecialDay_HnsDay_ApplyEffects(client);

@@ -32,10 +32,11 @@ ConVar g_Cvar_sv_force_transmit_players;
 public void Esp_OnPluginStart()
 {
   g_Cvar_sv_force_transmit_players = FindConVar("sv_force_transmit_players");
+  Esp_Reset();
 }
 
 //Call this to show or unshow ESP
-public void Esp_CheckGlows() 
+public void Esp_CheckGlows()
 {
   int playersUsingEsp = 0;
   for(int i = 1; i <= MaxClients; ++i) {
@@ -109,7 +110,7 @@ public Action Esp_OnSetTransmit(int entity, int client)
     return Plugin_Handled;
   
   //Check to see if client is allowed to see owner (target) of this entity
-  for (int i = 0; i < sizeof(g_PlayerModelsIndex); ++i) {
+  for (int i = 1; i <= MaxClients; ++i) {
     if (g_PlayerModelsIndex[i] == entity) {
       if (!s_EspCanSeeClient[client][i])
         return Plugin_Handled;
@@ -131,12 +132,12 @@ public void Esp_SetupGlow(int entity, int colour[4])
   }
 
   // Enable glow for custom skin
-  SetEntProp(entity, Prop_Send, "m_bShouldGlow", true, true);
+  SetEntProp(entity, Prop_Send, "m_bShouldGlow", true);
   SetEntProp(entity, Prop_Send, "m_nGlowStyle", 0);
   SetEntPropFloat(entity, Prop_Send, "m_flGlowMaxDist", 10000.0);
 
   // So now setup given glow colours for the skin
-  for(int i=0;i<3;i++) {
+  for(int i = 0; i < 3; i++) {
     SetEntData(entity, offset + i, colour[i], _, true); 
   }
 }
@@ -178,14 +179,17 @@ public int CreatePlayerModelProp(int client, char[] sModel)
 public void Esp_SetIsUsingEsp(int client, bool isUsingEsp)
 {
   s_IsUsingEsp[client] = isUsingEsp;
+  Esp_CheckGlows(); //refresh
 }
 
 public void Esp_SetEspColour(int client, int colour[4])
 {
   s_EspColour[client] = colour;
+  Esp_CheckGlows(); //refresh
 }
 
 public void Esp_SetEspCanSeeClient(int client, int target, bool canSee)
 {
   s_EspCanSeeClient[client][target] = canSee;
+  Esp_CheckGlows(); //refresh
 }

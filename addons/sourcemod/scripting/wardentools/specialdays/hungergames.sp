@@ -43,7 +43,7 @@ public void SpecialDays_HungerGames_Start()
 
   //Remove radar
   for (int i = 1; i <= MaxClients; ++i) {
-    if (IsClientConnected(i) && IsClientInGame(i) && IsPlayerAlive(i)) {
+    if (IsClientInGame(i) && IsPlayerAlive(i)) {
       s_NumKills[i] = 0;
       SpecialDays_HungerGames_ApplyEffects(i);
     }
@@ -89,7 +89,7 @@ public bool SpecialDays_HungerGames_RestrictionCheck()
 }
 
 //Round pre start
-public void SpecialDays_HungerGames_Reset(Handle event, const char[] name, bool dontBroadcast)
+public void SpecialDays_HungerGames_Reset(Event event, const char[] name, bool dontBroadcast)
 {
   delete s_FreeForAllRoundEndHandle;
   delete s_FreeForAllStartTimer;
@@ -144,7 +144,7 @@ public Action SpecialDays_HungerGames_EventPlayerSpawn(Event event, const char[]
     
   int client = GetClientOfUserId(event.GetInt("userid"));
   
-  if (!IsClientConnected(client) || !IsClientInGame(client) || !IsPlayerAlive(client))
+  if (!IsClientInGame(client) || !IsPlayerAlive(client))
     return Plugin_Continue;
   
   SpecialDays_HungerGames_ApplyEffects(client);
@@ -211,7 +211,7 @@ public Action SpecialDays_HungerGames_HungerGamesStart(Handle timer)
   s_IsPastHideTime = true; //no longer hide time
 
   for (int i = 1; i <= MaxClients; ++i) {
-    if (IsClientConnected(i) && IsClientInGame(i) && IsPlayerAlive(i)) {
+    if (IsClientInGame(i) && IsPlayerAlive(i)) {
       SpecialDays_HungerGames_ApplyEffects(i);
     }
   }
@@ -232,7 +232,7 @@ public Action SpecialDays_HungerGames_AutoBeaconOn(Handle timer)
   ServerCommand("sm_beacon @alive");
   
   for (int i = 1; i <= MaxClients; ++i) {
-    if (IsClientConnected(i)) {
+    if (IsClientInGame(i)) {
       SetHudTextParams(-1.0, -1.0, 5.0, 255, 0, 0, 200, 0, 1.0, 1.0, 1.0);
       ShowHudText(i, -1, "YOU MUST NOW ACTIVELY HUNT");
     }

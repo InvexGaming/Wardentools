@@ -164,7 +164,7 @@ public void OnClientPutInServer(int client)
  *  Events
  *********************************/
 //Round pre start
-public void Event_RoundPreStart(Handle event, const char[] name, bool dontBroadcast)
+public void Event_RoundPreStart(Event event, const char[] name, bool dontBroadcast)
 {
   g_NewRoundTimeElapsed = GetTime();
 }
@@ -619,7 +619,7 @@ public int SpecialDaysMenuHandler(Menu menu, MenuAction action, int client, int 
       menu.GetItem(param2, specialDayName, sizeof(specialDayName));
       
       //Start Special Day based on name
-      SpecialDays_StartSpecialDay(specialDayName);
+      SpecialDays_StartSpecialDay(specialDayName, true);
     }
     
     case MenuAction_Cancel:

@@ -40,7 +40,7 @@ public void SpecialDays_OneInTheChamber_Start()
   
   //Remove radar
   for (int i = 1; i <= MaxClients; ++i) {
-    if (IsClientConnected(i) && IsClientInGame(i) && IsPlayerAlive(i)) {
+    if (IsClientInGame(i) && IsPlayerAlive(i)) {
       s_NumKills[i] = 0;
       s_NumBullets[i] = -1;
       SpecialDays_OneInTheChamber_ApplyEffects(i);
@@ -207,7 +207,7 @@ public Action SpecialDays_OneInTheChamber_EventPlayerSpawn(Event event, const ch
     
   int client = GetClientOfUserId(event.GetInt("userid"));
   
-  if (!IsClientConnected(client) || !IsClientInGame(client) || !IsPlayerAlive(client))
+  if (!IsClientInGame(client) || !IsPlayerAlive(client))
     return Plugin_Continue;
   
   SpecialDays_OneInTheChamber_ApplyEffects(client);
@@ -294,7 +294,7 @@ public Action SpecialDays_OneInTheChamber_GameStart(Handle timer)
   s_IsPastHideTime = true; //no longer hide time
 
   for (int i = 1; i <= MaxClients; ++i) {
-    if (IsClientConnected(i) && IsClientInGame(i) && IsPlayerAlive(i)) {
+    if (IsClientInGame(i) && IsPlayerAlive(i)) {
       SpecialDays_OneInTheChamber_ApplyEffects(i);
     }
   }
@@ -333,7 +333,7 @@ public Action SpecialDays_OneInTheChamber_AutoBeaconOn(Handle timer)
   ServerCommand("sm_beacon @alive");
   
   for (int i = 1; i <= MaxClients; ++i) {
-    if (IsClientConnected(i)) {
+    if (IsClientInGame(i)) {
       SetHudTextParams(-1.0, -1.0, 5.0, 255, 0, 0, 200, 0, 1.0, 1.0, 1.0);
       ShowHudText(i, -1, "YOU MUST NOW ACTIVELY HUNT");
     }

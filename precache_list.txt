@@ -1,6 +1,4 @@
 //Materials
-materials/sprites/laserbeam.vmt
-materials/sprites/laserbeam.vtf
 materials/overlays/invex/infectedblood.vmt
 materials/overlays/invex/infectedblood.vtf
 materials/sprites/invex/infected.vmt

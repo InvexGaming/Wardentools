@@ -332,9 +332,13 @@
     "#format"		"{1:d}"
     "en" "Team deathmatch cannot start until {green}{1}{default} teams are highlighted."
   }
-  "Priority Talk Toggle"
+  "Priority Speaker Toggle"
   {
     "#format"		"{1:s},{2:s}"
-    "en" "Priority warden talk is now: {{1}}{2}{default}"
+    "en" "Priority Speaker is now: {{1}}{2}{default}"
+  }
+  "Priority Speaker You Are Muted"
+  {
+    "en" "You are muted by {green}Priority Speaker{default}. Please wait a second before talking again."
   }
 }

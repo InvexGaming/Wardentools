@@ -130,7 +130,7 @@ public bool SpecialDays_ZombieDay_RestrictionCheck()
 }
 
 //Round pre start
-public void SpecialDays_ZombieDay_Reset(Handle event, const char[] name, bool dontBroadcast)
+public void SpecialDays_ZombieDay_Reset(Event event, const char[] name, bool dontBroadcast)
 {
   delete s_ZombieDayNonInfectedWinHandle;
   delete s_DrainTimer;  
@@ -270,7 +270,7 @@ public Action SpecialDays_ZombieDay_EventPlayerSpawn(Event event, const char[] n
     
   int client = GetClientOfUserId(event.GetInt("userid"));
   
-  if (!IsClientConnected(client) || !IsClientInGame(client) || !IsPlayerAlive(client))
+  if (!IsClientInGame(client) || !IsPlayerAlive(client))
     return Plugin_Continue;
   
   CreateTimer(0.0, RemoveRadar, client); //radar removal

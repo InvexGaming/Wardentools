@@ -34,7 +34,7 @@ public void MicCheck_OnPluginStart()
 }
 
 //Round pre start
-public void MicCheck_Reset(Handle event, const char[] name, bool dontBroadcast)
+public void MicCheck_Reset(Event event, const char[] name, bool dontBroadcast)
 {
   s_MicCheckConducted = false;
   s_IsInMicCheckTime = false;

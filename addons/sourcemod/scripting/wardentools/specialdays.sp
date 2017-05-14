@@ -12,7 +12,6 @@
 #include <cstrike>
 
 #define SPECIALDAYS_MAX_DAYS 64
-#define MAX_ROUNDS 30
 
 enum TeleportType {
   TeleportType_All,
@@ -58,8 +57,8 @@ static int s_SpecialDayStartTime = 0;
 static bool s_SpecialDayDamageProtection = false;
 static Handle s_DamageProtectionHandle = null;
 static Handle s_TeleportHandle = null;
-static int s_RoundCount = 0;
-static bool s_IsSpecialDayRound[MAX_ROUNDS] = {false, ...};
+static int s_RoundCount = 1;
+static bool s_IsSpecialDayRound[999] = {false, ...}; //hold data for 999 consecutive days
 static bool s_ShowDayStartHud = false;
 static Handle s_GameStartWarningTimer = null;
 static int s_WarningSecondsLeft = -1;
@@ -72,6 +71,7 @@ public void SpecialDays_OnPluginStart()
   g_Cvar_SpecialDays_StartTime = CreateConVar("sm_wt_specialdays_starttime", "60.0", "The amount of time the warden has to trigger a special day (def. 60.0)");
   
   HookEvent("round_end", SpecialDay_EventRoundEnd, EventHookMode_Pre);
+  //HookEvent("round_end", SpecialDay_EventRoundEndPost, EventHookMode_Post);
   HookEvent("round_prestart", SpecialDay_Reset, EventHookMode_Post);
   HookEvent("server_cvar", SpecialDay_EventServerCvar, EventHookMode_Pre);
   
@@ -91,11 +91,16 @@ public void SpecialDays_OnPluginStart()
 public void SpecialDays_OnMapStart()
 {
   s_NumSpecialDays = 0;
-  s_RoundCount = 0;
+  s_RoundCount = 1;
+  
+  //Reset special day account
+  for (int i = 0; i < sizeof(s_IsSpecialDayRound); ++i) {
+    s_IsSpecialDayRound[i] = false;
+  }
 }
 
 //Round End
-public Action SpecialDay_EventRoundEnd(Handle event, const char[] name, bool dontBroadcast)
+public Action SpecialDay_EventRoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
   //Call end func
   if (s_CurrentSpecialDay != -1) {
@@ -103,10 +108,22 @@ public Action SpecialDay_EventRoundEnd(Handle event, const char[] name, bool don
     Call_Finish();
     s_CurrentSpecialDay = -1;
   }
+  
+  ++s_RoundCount; //increment round number
+  
+  //CSGO events start from 1 instead of 0, so we need to subtract 1 before comparison with cstrike enum
+  if (view_as<CSRoundEndReason>(event.GetInt("reason") - 1) == CSRoundEnd_GameStart) {
+    s_RoundCount = 1;
+    
+    //Reset special day account
+    for (int i = 0; i < sizeof(s_IsSpecialDayRound); ++i) {
+      s_IsSpecialDayRound[i] = false;
+    }
+  }
 }
 
 //Round pre start
-public Action SpecialDay_Reset(Handle event, const char[] name, bool dontBroadcast)
+public Action SpecialDay_Reset(Event event, const char[] name, bool dontBroadcast)
 { 
   //Enable LR if disabled
   ConVar hostiesLR = FindConVar("sm_hosties_lr");
@@ -132,21 +149,17 @@ public Action SpecialDay_Reset(Handle event, const char[] name, bool dontBroadca
   s_ShowDayStartHud = false;
   s_WarningSecondsLeft = -1;
   
-  ++s_RoundCount;
-  
   //Set first round freeday
-  if (s_RoundCount == 1) {
-    --s_NumSpecialDays; //this round does not reduce number of rounds
-    SpecialDays_StartSpecialDay("Freeday");
-  }
+  if (s_RoundCount == 1)
+    SpecialDays_StartSpecialDay("Freeday", false); //this round does not reduce number of remaining special days
 }
 
 //Disable annoying convar changes from being printed into chat
-public Action SpecialDay_EventServerCvar(Handle event, const char[] name, bool dontBroadcast)
+public Action SpecialDay_EventServerCvar(Event event, const char[] name, bool dontBroadcast)
 {
   char cvarName[128];
-  GetEventString(event, "cvarname", cvarName, sizeof(cvarName));
-
+  event.GetString("cvarname", cvarName, sizeof(cvarName));
+  
   if (StrEqual(cvarName, "mp_friendlyfire") || StrEqual(cvarName, "mp_teammates_are_enemies")) {
     return Plugin_Handled;
   }
@@ -189,7 +202,7 @@ public Action SpecialDays_OnTakeDamage(int victim, int &attacker, int &inflictor
 }
 
 
-public void SpecialDays_StartSpecialDay(char[] name)
+public void SpecialDays_StartSpecialDay(char[] name, bool countDay)
 {
   //Store start time
   s_SpecialDayStartTime = GetTime();
@@ -241,7 +254,8 @@ public void SpecialDays_StartSpecialDay(char[] name)
   if (wardenClaim != null)
     wardenClaim.IntValue = 0;
 
-  ++s_NumSpecialDays;
+  if (countDay)
+    ++s_NumSpecialDays;
   
   s_IsSpecialDayRound[s_RoundCount] = true;
 }
@@ -448,8 +462,9 @@ public bool SpecialDays_CanStartSpecialDay()
   
   if (GetTimeSinceRoundStart() >= SpecialDays_GetSecondsToStartDay())
     return false;
-    
-  if (s_RoundCount <= 1 || s_IsSpecialDayRound[s_RoundCount - 1])
+  
+  //Cannot start special day on first round or if last round was special day
+  if (s_RoundCount == 1 || s_IsSpecialDayRound[s_RoundCount - 1])
     return false;
   
   return true;

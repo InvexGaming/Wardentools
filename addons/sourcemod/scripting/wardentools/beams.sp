@@ -56,13 +56,13 @@ public void Beams_OnMapStart()
 }
 
 //Round End
-public void Beams_EventRoundEnd(Handle event, const char[] name, bool dontBroadcast)
+public void Beams_EventRoundEnd(Event event, const char[] name, bool dontBroadcast)
 {
   s_InRoundEndTime = true;
 }
 
 //Round pre start
-public void Beams_Reset(Handle event, const char[] name, bool dontBroadcast)
+public void Beams_Reset(Event event, const char[] name, bool dontBroadcast)
 {
   s_CurBeamsUsed = 0;
   s_InRoundEndTime = false;
