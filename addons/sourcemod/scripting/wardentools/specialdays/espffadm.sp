@@ -24,7 +24,7 @@ public void SpecialDays_Init_EspFfaDm()
   g_Cvar_SpecialDays_EspFfaDm_TeleportTime = CreateConVar("sm_wt_specialdays_espffadm_tptime", "10.0", "The amount of time before all players are teleported to start beacon (def. 10.0)");
   g_Cvar_SpecialDays_EspFfaDm_HideTime = CreateConVar("sm_wt_specialdays_espffadm_hidetime", "60", "Number of seconds everyone has to hide (def. 60)");
   g_Cvar_SpecialDays_EspFfaDm_SlayTime = CreateConVar("sm_wt_specialdays_espffadm_slaytime", "420.0", "The amount of time before all players are slayed (def. 420.0)");
-  g_Cvar_SpecialDays_EspFfaDm_AutoMustHuntTime = CreateConVar("sm_wt_specialdays_espffadm_automusthunttime", "300.0", "The amount of time before all players are beaconed and told to actively hunt (def. 300.0)");
+  g_Cvar_SpecialDays_EspFfaDm_AutoMustHuntTime = CreateConVar("sm_wt_specialdays_espffadm_automusthunttime", "300.0", "The amount of time before all players are told to actively hunt (def. 300.0)");
   
   //Hooks
   HookEvent("round_prestart", SpecialDays_EspFfaDm_Reset, EventHookMode_Post);
@@ -169,6 +169,7 @@ public Action SpecialDays_EspFfaDm_EventPlayerSpawn(Event event, const char[] na
   
   if (s_DayStarted) {
     Esp_SetIsUsingEsp(client, true);
+    Esp_CheckGlows(); //Refresh Glows
   }
   
   return Plugin_Continue;
@@ -186,6 +187,8 @@ public Action SpecialDays_EspFfaDm_EspFfaDmStart(Handle timer)
     Esp_SetIsUsingEsp(i, true);
   }
   
+  Esp_CheckGlows(); //Refresh Glows
+  
   s_DayStarted = true;
   
   return Plugin_Handled;
@@ -200,7 +203,7 @@ public Action SpecialDays_EspFfaDm_AutoMustHuntMsgOn(Handle timer)
     
   for (int i = 1; i <= MaxClients; ++i) {
     if (IsClientInGame(i)) {
-      SetHudTextParams(-1.0, -1.0, 5.0, 255, 0, 0, 200, 0, 1.0, 1.0, 1.0);
+      SetHudTextParams(-1.0, 0.2, 5.0, 255, 0, 0, 120, 0, 1.0, 1.0, 1.0);
       ShowHudText(i, -1, "YOU MUST NOW ACTIVELY HUNT");
     }
   }

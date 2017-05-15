@@ -179,17 +179,14 @@ public int CreatePlayerModelProp(int client, char[] sModel)
 public void Esp_SetIsUsingEsp(int client, bool isUsingEsp)
 {
   s_IsUsingEsp[client] = isUsingEsp;
-  Esp_CheckGlows(); //refresh
 }
 
 public void Esp_SetEspColour(int client, int colour[4])
 {
   s_EspColour[client] = colour;
-  Esp_CheckGlows(); //refresh
 }
 
 public void Esp_SetEspCanSeeClient(int client, int target, bool canSee)
 {
   s_EspCanSeeClient[client][target] = canSee;
-  Esp_CheckGlows(); //refresh
 }

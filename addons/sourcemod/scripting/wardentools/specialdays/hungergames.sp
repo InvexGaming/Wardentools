@@ -233,7 +233,7 @@ public Action SpecialDays_HungerGames_AutoBeaconOn(Handle timer)
   
   for (int i = 1; i <= MaxClients; ++i) {
     if (IsClientInGame(i)) {
-      SetHudTextParams(-1.0, -1.0, 5.0, 255, 0, 0, 200, 0, 1.0, 1.0, 1.0);
+      SetHudTextParams(-1.0, 0.2, 5.0, 255, 0, 0, 120, 0, 1.0, 1.0, 1.0);
       ShowHudText(i, -1, "YOU MUST NOW ACTIVELY HUNT");
     }
   }
