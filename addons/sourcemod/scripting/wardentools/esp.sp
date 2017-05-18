@@ -138,19 +138,6 @@ public Action Esp_OnSetTransmit(int entity, int client)
       if (!s_EspCanSeeClient[client][target])
         return Plugin_Handled;
       
-      /* TODO
-      //Also make sure player isn't an invalid team
-      if (!IsClientInGame(target))
-        return Plugin_Handled;
-      
-      int targetTeam = GetClientTeam(target);
-      if (targetTeam == CS_TEAM_NONE || targetTeam == CS_TEAM_SPECTATOR) {
-        PrintToChatAll("IN SPEC, BLOCK!");
-        Esp_RemoveSkin(target);
-        return Plugin_Handled;
-      }
-      */
-      
       break;
     }
   }
