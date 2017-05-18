@@ -6,10 +6,13 @@
 #include "warden.inc"
 
 //Global Defines
-#define WT_VERSION "2.13"
+#define WT_VERSION "2.14"
 #define CHAT_TAG_PREFIX "[{pink}WT{default}] "
 
 #define HIDE_RADAR_CSGO 1<<12
+
+#define HUDTEXT_CHANNEL_SPECIALDAYS 0
+#define HUDTEXT_CHANNEL_PRIORITYSPEAKER 1
 
 //Returns true if round is a special day, false otherwise
 native bool WardenTools_IsSpecialDay();

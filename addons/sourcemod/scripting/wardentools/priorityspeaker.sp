@@ -65,8 +65,9 @@ public void OnClientSpeakingEx(int client)
       s_BlockMutedMessage[client] = true;
       CreateTimer(1.0, Timer_RemoveMutedBlock, client);
       
-      //Print message
-      CPrintToChat(client, "%s%t", CHAT_TAG_PREFIX, "Priority Speaker You Are Muted");
+      //Print HudText notifier
+      SetHudTextParams(-1.0, 0.85, 1.0, 255, 0, 0, 50, 0, 1.0, 0.2, 0.2);
+      ShowHudText(client, HUDTEXT_CHANNEL_PRIORITYSPEAKER, "PRIORITY SPEAKER IS MUTING YOU");
     }
     
     return;

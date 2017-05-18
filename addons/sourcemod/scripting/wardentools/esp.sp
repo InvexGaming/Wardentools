@@ -32,7 +32,30 @@ ConVar g_Cvar_sv_force_transmit_players;
 public void Esp_OnPluginStart()
 {
   g_Cvar_sv_force_transmit_players = FindConVar("sv_force_transmit_players");
+  
   Esp_Reset();
+  
+  //Hooks
+  HookEvent("player_team", Esp_EventPlayerTeam, EventHookMode_Pre);
+}
+
+//Remove glows when a player moves to spec to prevent an outline glow staying there
+public Action Esp_EventPlayerTeam(Event event, const char[] name, bool dontBroadcast)
+{
+  int client = GetClientOfUserId(event.GetInt("userid"));
+  
+  if (!(client > 0 && client <= MaxClients && IsClientInGame(client)))
+    return Plugin_Handled;
+  
+  int toTeam = event.GetInt("team");
+  
+  if (toTeam == CS_TEAM_SPECTATOR || toTeam == CS_TEAM_NONE) {
+    //Remove glow
+    Esp_RemoveSkin(client);
+    Esp_CheckGlows();
+  }
+  
+  return Plugin_Continue;
 }
 
 //Call this to show or unshow ESP
@@ -110,11 +133,24 @@ public Action Esp_OnSetTransmit(int entity, int client)
     return Plugin_Handled;
   
   //Check to see if client is allowed to see owner (target) of this entity
-  for (int i = 1; i <= MaxClients; ++i) {
-    if (g_PlayerModelsIndex[i] == entity) {
-      if (!s_EspCanSeeClient[client][i])
+  for (int target = 1; target <= MaxClients; ++target) {
+    if (g_PlayerModelsIndex[target] == entity) {
+      if (!s_EspCanSeeClient[client][target])
         return Plugin_Handled;
-        
+      
+      /* TODO
+      //Also make sure player isn't an invalid team
+      if (!IsClientInGame(target))
+        return Plugin_Handled;
+      
+      int targetTeam = GetClientTeam(target);
+      if (targetTeam == CS_TEAM_NONE || targetTeam == CS_TEAM_SPECTATOR) {
+        PrintToChatAll("IN SPEC, BLOCK!");
+        Esp_RemoveSkin(target);
+        return Plugin_Handled;
+      }
+      */
+      
       break;
     }
   }

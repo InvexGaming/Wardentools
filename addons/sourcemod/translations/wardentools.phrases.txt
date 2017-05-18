@@ -337,8 +337,4 @@
     "#format"		"{1:s},{2:s}"
     "en" "Priority Speaker is now: {{1}}{2}{default}"
   }
-  "Priority Speaker You Are Muted"
-  {
-    "en" "You are muted by {green}Priority Speaker{default}. Please wait a second before talking again."
-  }
 }

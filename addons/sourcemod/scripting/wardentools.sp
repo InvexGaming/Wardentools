@@ -221,7 +221,7 @@ void SetupMenus()
   g_MainMenu = new Menu(MainMenuHandler, MenuAction_Select|MenuAction_DisplayItem|MenuAction_DrawItem);
   
   char mainMenuTitle[255];
-  Format(mainMenuTitle, sizeof(mainMenuTitle), "Warden Tools (%s)", WT_VERSION);
+  Format(mainMenuTitle, sizeof(mainMenuTitle), "Warden Tools (V%s)", WT_VERSION);
   g_MainMenu.SetTitle(mainMenuTitle);
   g_MainMenu.ExitButton = true;
   
