@@ -6,7 +6,7 @@
 #include "warden.inc"
 
 //Global Defines
-#define WT_VERSION "2.14"
+#define WT_VERSION "2.15"
 #define CHAT_TAG_PREFIX "[{pink}WT{default}] "
 
 #define HIDE_RADAR_CSGO 1<<12

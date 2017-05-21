@@ -5,8 +5,9 @@
 #include <clientprefs>
 #include <wardentools>
 #include <warden>
-#include "colors_csgo.inc"
-#include "emitsoundany.inc"
+#include <sourcecomms>
+#include <colors_csgo>
+#include <emitsoundany>
 
 #pragma semicolon 1
 #pragma newdecls required
@@ -35,6 +36,9 @@ AdminFlag g_VipFlag = Admin_Custom3;
 
 //Settings
 int g_NewRoundTimeElapsed = 0;
+
+//Bools
+bool g_IsUsingSourceComms = false;
 
 /*********************************
  *   Module Includes
@@ -78,7 +82,24 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
   
   return APLRes_Success;
 }
- 
+
+public void OnAllPluginsLoaded()
+{
+	g_IsUsingSourceComms = LibraryExists("sourcecomms");
+}
+
+public void OnLibraryAdded(const char[] name)
+{
+	if (StrEqual(name, "sourcecomms"))
+		g_IsUsingSourceComms = true;
+}
+
+public void OnLibraryRemoved(const char[] name)
+{
+	if (StrEqual(name, "sourcecomms"))
+    g_IsUsingSourceComms = false;
+}
+
 // Plugin Start
 public void OnPluginStart()
 {
