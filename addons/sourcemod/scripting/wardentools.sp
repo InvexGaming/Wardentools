@@ -85,18 +85,24 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnAllPluginsLoaded()
 {
-	g_IsUsingSourceComms = LibraryExists("sourcecomms");
+  g_IsUsingSourceComms = LibraryExists("sourcecomms");
+  if (!g_IsUsingSourceComms)
+    g_IsUsingSourceComms = LibraryExists("sourcecomms++");
 }
 
 public void OnLibraryAdded(const char[] name)
 {
-	if (StrEqual(name, "sourcecomms"))
-		g_IsUsingSourceComms = true;
+  if (StrEqual(name, "sourcecomms"))
+    g_IsUsingSourceComms = true;
+  else if (StrEqual(name, "sourcecomms++"))
+    g_IsUsingSourceComms = true;
 }
 
 public void OnLibraryRemoved(const char[] name)
 {
-	if (StrEqual(name, "sourcecomms"))
+  if (StrEqual(name, "sourcecomms"))
+    g_IsUsingSourceComms = false;
+  else if (StrEqual(name, "sourcecomms++"))
     g_IsUsingSourceComms = false;
 }
 
